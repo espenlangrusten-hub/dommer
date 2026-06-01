@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/dommer/static/css/main.82e84a97.css",
+    "main.js": "/dommer/static/js/main.6c11a1db.js",
+    "index.html": "/dommer/index.html",
+    "main.82e84a97.css.map": "/dommer/static/css/main.82e84a97.css.map",
+    "main.6c11a1db.js.map": "/dommer/static/js/main.6c11a1db.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.82e84a97.css",
+    "static/js/main.6c11a1db.js"
+  ]
+}
