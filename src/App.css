@@ -1,15 +1,28 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  background: #fff;
+  color: #111;
+  min-height: 100vh;
+}
+
 .login-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0a1628 0%, #1a2f4e 100%);
+  background: #fff;
   padding: 20px;
 }
 
 .login-container {
   width: 100%;
-  max-width: 460px;
+  max-width: 420px;
 }
 
 .login-logo {
@@ -17,80 +30,87 @@
   margin-bottom: 40px;
 }
 
-.login-logo .whistle-icon {
-  font-size: 52px;
-  display: block;
-  margin-bottom: 10px;
-}
-
 .login-logo h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #fff;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: #111;
   letter-spacing: 1px;
 }
 
 .login-logo p {
-  color: #8a9bc0;
+  color: #666;
   font-size: 0.95rem;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .role-selector {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .role-card {
-  background: rgba(255,255,255,0.05);
-  border: 2px solid rgba(255,255,255,0.1);
+  background: #f5f5f5;
+  border: 2px solid #e0e0e0;
   border-radius: 14px;
-  padding: 20px 12px;
+  padding: 24px 12px;
   cursor: pointer;
   text-align: center;
-  transition: all 0.2s ease;
-  color: #8a9bc0;
+  transition: border-color 0.2s, background 0.2s;
+  opacity: 0;
+  animation: fadeUp 0.5s ease forwards;
+}
+
+.role-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.role-card:nth-child(2) {
+  animation-delay: 0.25s;
 }
 
 .role-card:hover {
-  border-color: rgba(59, 130, 246, 0.5);
-  background: rgba(59, 130, 246, 0.08);
-  color: #fff;
+  border-color: #2563eb;
+  background: #eff6ff;
 }
 
 .role-card.active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.15);
-  color: #fff;
+  border-color: #2563eb;
+  background: #dbeafe;
 }
 
-.role-card .role-icon {
-  font-size: 32px;
-  display: block;
-  margin-bottom: 8px;
-}
-
-.role-card .role-label {
-  font-size: 0.9rem;
-  font-weight: 600;
+.role-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .login-form {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: #f9f9f9;
+  border: 1px solid #e5e5e5;
   border-radius: 16px;
   padding: 28px;
 }
 
 .login-form h2 {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   margin-bottom: 20px;
-  color: #e2e8f0;
+  color: #111;
 }
 
 .form-group {
@@ -100,30 +120,29 @@
 .form-group label {
   display: block;
   font-size: 0.85rem;
-  color: #8a9bc0;
+  color: #444;
   margin-bottom: 6px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .form-group input {
   width: 100%;
   padding: 12px 14px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: #fff;
+  border: 1px solid #d0d0d0;
   border-radius: 10px;
-  color: #fff;
+  color: #111;
   font-size: 0.95rem;
   outline: none;
   transition: border-color 0.2s;
 }
 
 .form-group input::placeholder {
-  color: #4a5e7a;
+  color: #aaa;
 }
 
 .form-group input:focus {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
+  border-color: #2563eb;
 }
 
 .login-btn {
@@ -132,12 +151,13 @@
   background: #3b82f6;
   border: none;
   border-radius: 10px;
-  color: #fff;
+  color: #000;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   margin-top: 8px;
   transition: background 0.2s, transform 0.1s;
+  letter-spacing: 0.3px;
 }
 
 .login-btn:hover {
@@ -152,13 +172,13 @@
   text-align: center;
   margin-top: 16px;
   font-size: 0.85rem;
-  color: #8a9bc0;
+  color: #666;
 }
 
 .form-footer a {
-  color: #3b82f6;
+  color: #2563eb;
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .form-footer a:hover {
@@ -170,7 +190,7 @@
   align-items: center;
   gap: 10px;
   margin: 18px 0;
-  color: #4a5e7a;
+  color: #bbb;
   font-size: 0.8rem;
 }
 
@@ -179,5 +199,5 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: rgba(255,255,255,0.08);
+  background: #e5e5e5;
 }

@@ -17,7 +17,6 @@ function App() {
     <div className="login-page">
       <div className="login-container">
         <div className="login-logo">
-          <span className="whistle-icon">🏟️</span>
           <h1>DommerJob</h1>
           <p>Kobler dommere og klubber</p>
         </div>
@@ -27,14 +26,12 @@ function App() {
             className={`role-card ${rolle === 'dommer' ? 'active' : ''}`}
             onClick={() => setRolle('dommer')}
           >
-            <span className="role-icon">🟡</span>
             <span className="role-label">Dommer</span>
           </div>
           <div
             className={`role-card ${rolle === 'klubb' ? 'active' : ''}`}
             onClick={() => setRolle('klubb')}
           >
-            <span className="role-icon">🏆</span>
             <span className="role-label">Klubb</span>
           </div>
         </div>
