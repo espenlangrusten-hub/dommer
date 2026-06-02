@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
 import KlubbDashboard from './components/KlubbDashboard';
 import TrenerDashboard from './components/TrenerDashboard';
+import DommerDashboard from './components/DommerDashboard';
 import './App.css';
 
 type Role = 'dommer' | 'klubb' | 'trener';
@@ -84,23 +85,7 @@ function App() {
       );
     }
 
-    return (
-      <div className="login-page">
-        <div className="login-container">
-          <div className="login-logo">
-            <h1>DommerJob</h1>
-            <p>Kobler dommere og klubber</p>
-          </div>
-          <div className="login-form">
-            <h2>Velkommen, {bruker.user_metadata?.navn ?? bruker.email}!</h2>
-            <p className="bruker-info">
-              Logget inn som <strong>Dommer</strong><br />{bruker.email}
-            </p>
-            <button className="login-btn loggut-btn" onClick={loggUt}>Logg ut</button>
-          </div>
-        </div>
-      </div>
-    );
+    return <DommerDashboard bruker={bruker} onLoggUt={loggUt} />;
   }
 
   return (

@@ -637,3 +637,435 @@ body {
   margin-left: 8px;
   vertical-align: middle;
 }
+
+/* ---- Dommer Dashboard ---- */
+.dommer-dashboard {
+  min-height: 100vh;
+  background: #f7f8fa;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 72px;
+}
+
+.dommer-innhold {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.tab-innhold {
+  padding: 20px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.tab-tittel {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 18px;
+}
+
+.tab-laster {
+  padding: 40px 20px;
+  text-align: center;
+  color: #888;
+}
+
+.bunn-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  z-index: 50;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.bunn-nav-knapp {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #aaa;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.bunn-nav-knapp svg {
+  width: 22px;
+  height: 22px;
+}
+
+.bunn-nav-knapp.active {
+  color: #2563eb;
+}
+
+.kamp-kort-klikkbar {
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.kamp-kort-klikkbar:hover {
+  box-shadow: 0 4px 16px rgba(37,99,235,0.12);
+  transform: translateY(-1px);
+}
+
+.kamp-klubb-rad {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.kamp-klubb-mini-ikon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.kamp-klubb-navn {
+  font-size: 0.78rem;
+  color: #888;
+  font-weight: 600;
+}
+
+.kamp-detalj {
+  padding: 20px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.tilbake-knapp {
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.detalj-kort {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.detalj-klubb-ikon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 8px;
+}
+
+.detalj-klubb-navn {
+  color: #888;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.detalj-lag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #111;
+  margin-bottom: 20px;
+}
+
+.detalj-info-rad {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.detalj-info-boks {
+  background: #f7f8fa;
+  border-radius: 10px;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detalj-info-label {
+  font-size: 0.72rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.detalj-info-verdi {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111;
+}
+
+/* ---- Registrer kamp ---- */
+.kamptype-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.kamptype-kort {
+  border: 2px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kamptype-kort:hover {
+  border-color: #93c5fd;
+  background: #f0f7ff;
+}
+
+.kamptype-kort.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.kamptype-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.kamptype-betaling {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #2563eb;
+}
+
+.signatur-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.signatur-header label {
+  font-size: 0.85rem;
+  color: #444;
+  font-weight: 600;
+}
+
+.slett-signatur {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.signatur-wrapper {
+  position: relative;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  touch-action: none;
+}
+
+.signatur-canvas {
+  display: block;
+  width: 100%;
+  height: 120px;
+  cursor: crosshair;
+}
+
+.signatur-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ccc;
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+.betaling-rad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  color: #166534;
+  font-weight: 600;
+}
+
+.betaling-beloep {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+/* ---- Min Profil ---- */
+.profil-kort {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.profil-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profil-navn {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.profil-epost {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+.inntekt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.inntekt-kort {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inntekt-tall {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #22c55e;
+}
+
+.venter-farge {
+  color: #f59e0b;
+}
+
+.inntekt-label {
+  font-size: 0.78rem;
+  color: #888;
+  font-weight: 600;
+}
+
+.seksjon-undertittel {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 10px;
+}
+
+.historikk-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.historikk-rad {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.historikk-kamp {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.historikk-meta {
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+.status-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.betaling-satser {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 8px;
+}
+
+.sats-rad {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.sats-rad:last-child {
+  border-bottom: none;
+}
+
+.sats-beloep {
+  font-weight: 700;
+  color: #111;
+}
