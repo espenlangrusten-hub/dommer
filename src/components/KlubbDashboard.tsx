@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '../supabase';
 import OpprettKlubb from './OpprettKlubb';
 import OpprettKamp from './OpprettKamp';
@@ -28,6 +28,21 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
   const [antallDommere, setAntallDommere] = useState(0);
   const [laster, setLaster] = useState(true);
   const [visOpprettKamp, setVisOpprettKamp] = useState(false);
+  const knappRef = useRef<HTMLButtonElement>(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0, near: false });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const btn = knappRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width / 2);
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    setTilt({ x: dy * 14, y: -dx * 14, near: true });
+  };
+
+  const handleMouseLeave = () => setTilt({ x: 0, y: 0, near: false });
 
   const hentKlubb = async () => {
     const { data } = await supabase
@@ -110,7 +125,18 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
           </div>
         )}
 
-        <button className="ny-kamp-knapp" onClick={() => setVisOpprettKamp(true)}>
+        <button
+          ref={knappRef}
+          className="ny-kamp-knapp"
+          onClick={() => setVisOpprettKamp(true)}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            transform: `perspective(600px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg) scale(${tilt.near ? 1.04 : 1})`,
+            transition: tilt.near ? 'transform 0.08s ease' : 'transform 0.4s ease',
+            boxShadow: tilt.near ? '0 8px 30px rgba(37,99,235,0.35)' : undefined,
+          }}
+        >
           + Opprett ny kamp
         </button>
       </main>
