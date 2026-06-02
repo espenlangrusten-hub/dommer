@@ -14,21 +14,21 @@ interface ValgtKamp {
   kamp: Kamp;
 }
 
-export default function KamperTab() {
+interface Props { klubbId: string | null; }
+
+export default function KamperTab({ klubbId }: Props) {
   const [kamper, setKamper] = useState<Kamp[]>([]);
   const [valgt, setValgt] = useState<ValgtKamp | null>(null);
   const [laster, setLaster] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from('matches')
-      .select('*, clubs(name, icon_url)')
-      .order('match_date', { ascending: true })
-      .then(({ data }) => {
-        setKamper((data as Kamp[]) ?? []);
-        setLaster(false);
-      });
-  }, []);
+    let query = supabase.from('matches').select('*, clubs(name, icon_url)').order('match_date', { ascending: true });
+    if (klubbId) query = query.eq('club_id', klubbId);
+    query.then(({ data }) => {
+      setKamper((data as Kamp[]) ?? []);
+      setLaster(false);
+    });
+  }, [klubbId]);
 
   const formatDato = (iso: string) => {
     const d = new Date(iso);

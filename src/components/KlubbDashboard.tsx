@@ -8,6 +8,7 @@ interface Klubb {
   name: string;
   icon_url: string | null;
   invite_code: string | null;
+  referee_code: string | null;
 }
 
 interface Kamp {
@@ -23,6 +24,8 @@ interface Props {
   onLoggUt: () => void;
 }
 
+type KodeType = 'trener' | 'dommer';
+
 function genererKode(): string {
   const tegn = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({ length: 5 }, () => tegn[Math.floor(Math.random() * tegn.length)]).join('');
@@ -32,9 +35,10 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
   const [klubb, setKlubb] = useState<Klubb | null>(null);
   const [kamper, setKamper] = useState<Kamp[]>([]);
   const [antallTrenere, setAntallTrenere] = useState(0);
+  const [antallDommere, setAntallDommere] = useState(0);
   const [laster, setLaster] = useState(true);
   const [visOpprettKamp, setVisOpprettKamp] = useState(false);
-  const [visKodeModal, setVisKodeModal] = useState(false);
+  const [visKodeModal, setVisKodeModal] = useState<KodeType | null>(null);
   const [kopiertKode, setKopiertKode] = useState(false);
   const knappRef = useRef<HTMLButtonElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0, near: false });
@@ -53,104 +57,91 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
   const handleMouseLeave = () => setTilt({ x: 0, y: 0, near: false });
 
   const hentKlubb = async () => {
-    const { data } = await supabase
-      .from('clubs')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    const { data } = await supabase.from('clubs').select('*').eq('user_id', userId).single();
     setKlubb(data ?? null);
     if (data) {
       await hentKamper(data.id);
       await hentAntallTrenere(data.id);
+      await hentAntallDommere(data.id);
     }
     setLaster(false);
   };
 
   const hentKamper = async (clubId: string) => {
-    const { data } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('club_id', clubId)
-      .order('match_date', { ascending: true });
+    const { data } = await supabase.from('matches').select('*').eq('club_id', clubId).order('match_date', { ascending: true });
     setKamper(data ?? []);
   };
 
   const hentAntallTrenere = async (clubId: string) => {
-    const { count } = await supabase
-      .from('coach_memberships')
-      .select('*', { count: 'exact', head: true })
-      .eq('club_id', clubId);
+    const { count } = await supabase.from('coach_memberships').select('*', { count: 'exact', head: true }).eq('club_id', clubId);
     setAntallTrenere(count ?? 0);
   };
 
-  const åpneKodeModal = async () => {
+  const hentAntallDommere = async (clubId: string) => {
+    const { count } = await supabase.from('referee_memberships').select('*', { count: 'exact', head: true }).eq('club_id', clubId);
+    setAntallDommere(count ?? 0);
+  };
+
+  const åpneKodeModal = async (type: KodeType) => {
     if (!klubb) return;
-    if (!klubb.invite_code) {
+    const felt = type === 'trener' ? 'invite_code' : 'referee_code';
+    if (!klubb[felt]) {
       const kode = genererKode();
-      const { data } = await supabase
-        .from('clubs')
-        .update({ invite_code: kode })
-        .eq('id', klubb.id)
-        .select()
-        .single();
+      const { data } = await supabase.from('clubs').update({ [felt]: kode }).eq('id', klubb.id).select().single();
       if (data) setKlubb(data);
     }
-    setVisKodeModal(true);
+    setKopiertKode(false);
+    setVisKodeModal(type);
   };
 
-  const kopierKode = () => {
-    if (klubb?.invite_code) {
-      navigator.clipboard.writeText(klubb.invite_code);
-      setKopiertKode(true);
-      setTimeout(() => setKopiertKode(false), 2000);
-    }
+  const kopierKode = (kode: string) => {
+    navigator.clipboard.writeText(kode);
+    setKopiertKode(true);
+    setTimeout(() => setKopiertKode(false), 2000);
   };
 
-  useEffect(() => {
-    hentKlubb();
-  }, [userId]);
+  useEffect(() => { hentKlubb(); }, [userId]);
 
   const formatDato = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleDateString('nb-NO', {
-      weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
-    }) + ' kl. ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('nb-NO', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
+      + ' kl. ' + d.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
   };
 
   if (laster) return <div className="login-page"><p>Laster...</p></div>;
+  if (!klubb) return <OpprettKlubb userId={userId} onKlubbOpprettet={hentKlubb} />;
 
-  if (!klubb) {
-    return <OpprettKlubb userId={userId} onKlubbOpprettet={hentKlubb} />;
-  }
+  const aktivKode = visKodeModal === 'trener' ? klubb.invite_code : klubb.referee_code;
 
   return (
     <div className="dashboard">
       <header className="dash-header">
         <div className="dash-logo">
-          {klubb.icon_url ? (
-            <img src={klubb.icon_url} alt="Klubbikon" className="klubb-ikon" />
-          ) : (
-            <div className="klubb-ikon-placeholder">{klubb.name[0]}</div>
-          )}
+          {klubb.icon_url
+            ? <img src={klubb.icon_url} alt="Klubbikon" className="klubb-ikon" />
+            : <div className="klubb-ikon-placeholder">{klubb.name[0]}</div>}
           <span className="dash-klubbnavn">{klubb.name}</span>
         </div>
         <div className="header-knapper">
-          <button className="legg-til-trener-knapp" onClick={åpneKodeModal}>
-            + Legg til trenere
-          </button>
+          <button className="legg-til-knapp trener-farge" onClick={() => åpneKodeModal('trener')}>+ Trenere</button>
+          <button className="legg-til-knapp dommer-farge" onClick={() => åpneKodeModal('dommer')}>+ Dommere</button>
           <button className="loggut-knapp" onClick={onLoggUt}>Logg ut</button>
         </div>
       </header>
 
       <main className="dash-innhold">
-        <div className="statistikk-kort">
-          <div className="stat-tall">{antallTrenere}</div>
-          <div className="stat-label">Trenere i klubben</div>
+        <div className="statistikk-grid">
+          <div className="statistikk-kort">
+            <div className="stat-tall">{antallTrenere}</div>
+            <div className="stat-label">Trenere</div>
+          </div>
+          <div className="statistikk-kort">
+            <div className="stat-tall dommer-tall">{antallDommere}</div>
+            <div className="stat-label">Dommere</div>
+          </div>
         </div>
 
-        <div className="seksjon-header">
-          <h2>Kamper</h2>
-        </div>
+        <div className="seksjon-header"><h2>Kamper</h2></div>
 
         {kamper.length === 0 ? (
           <p className="ingen-kamper">Ingen kamper lagt ut ennå.</p>
@@ -159,9 +150,7 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
             {kamper.map(kamp => (
               <div className="kamp-kort" key={kamp.id}>
                 <div className="kamp-lag">
-                  <span>{kamp.home_team}</span>
-                  <span className="vs">vs</span>
-                  <span>{kamp.away_team}</span>
+                  <span>{kamp.home_team}</span><span className="vs">vs</span><span>{kamp.away_team}</span>
                 </div>
                 <div className="kamp-info">
                   <span className="aldersgruppe-badge">{kamp.age_group}</span>
@@ -192,25 +181,22 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
         <OpprettKamp
           clubId={klubb.id}
           onLukk={() => setVisOpprettKamp(false)}
-          onKampPostet={() => {
-            setVisOpprettKamp(false);
-            hentKamper(klubb.id);
-          }}
+          onKampPostet={() => { setVisOpprettKamp(false); hentKamper(klubb.id); }}
         />
       )}
 
       {visKodeModal && (
-        <div className="modal-overlay" onClick={() => setVisKodeModal(false)}>
+        <div className="modal-overlay" onClick={() => setVisKodeModal(null)}>
           <div className="modal kode-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Trenerkode</h2>
-              <button className="lukk-btn" onClick={() => setVisKodeModal(false)}>✕</button>
+              <h2>{visKodeModal === 'trener' ? 'Trenerkode' : 'Dommerkode'}</h2>
+              <button className="lukk-btn" onClick={() => setVisKodeModal(null)}>✕</button>
             </div>
             <p className="kode-beskrivelse">
-              Del denne koden med trenere. De oppgir den når de registrerer seg som trener.
+              Del denne koden med {visKodeModal === 'trener' ? 'trenere' : 'dommere'}. De oppgir den når de registrerer seg.
             </p>
-            <div className="kode-visning" onClick={kopierKode}>
-              <span className="kode-tekst">{klubb.invite_code}</span>
+            <div className="kode-visning" onClick={() => aktivKode && kopierKode(aktivKode)}>
+              <span className={`kode-tekst ${visKodeModal === 'dommer' ? 'dommer-kode-farge' : ''}`}>{aktivKode}</span>
               <span className="kopier-hint">{kopiertKode ? 'Kopiert!' : 'Trykk for å kopiere'}</span>
             </div>
           </div>

@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 
 interface Klubb { id: string; name: string; }
 
-interface Props { refereeId: string; }
+interface Props { refereeId: string; klubbId: string | null; }
 
 const kampTyper = [
   { label: '5er fotball', verdi: '5', betaling: 150 },
@@ -18,9 +18,9 @@ const aldersgrupper = [
   'Senior menn','Senior kvinner','Veteran',
 ];
 
-export default function RegistrerKampTab({ refereeId }: Props) {
+export default function RegistrerKampTab({ refereeId, klubbId }: Props) {
   const [klubber, setKlubber] = useState<Klubb[]>([]);
-  const [klubbId, setKlubbId] = useState('');
+  const [valgtKlubbId, setValgtKlubbId] = useState(klubbId ?? '');
   const [hjemmelag, setHjemmelag] = useState('');
   const [bortelag, setBortelag] = useState('');
   const [aldersgruppe, setAldersgruppe] = useState('');
@@ -89,7 +89,7 @@ export default function RegistrerKampTab({ refereeId }: Props) {
 
     const { error } = await supabase.from('referee_registrations').insert({
       referee_id: refereeId,
-      club_id: klubbId,
+      club_id: valgtKlubbId,
       home_team: hjemmelag,
       away_team: bortelag,
       age_group: aldersgruppe,
@@ -115,13 +115,15 @@ export default function RegistrerKampTab({ refereeId }: Props) {
     <div className="tab-innhold">
       <h2 className="tab-tittel">Registrer kamp</h2>
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Klubb</label>
-          <select className="form-select" value={klubbId} onChange={e => setKlubbId(e.target.value)} required>
-            <option value="">Velg klubb</option>
-            {klubber.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-          </select>
-        </div>
+        {!klubbId && (
+          <div className="form-group">
+            <label>Klubb</label>
+            <select className="form-select" value={valgtKlubbId} onChange={e => setValgtKlubbId(e.target.value)} required>
+              <option value="">Velg klubb</option>
+              {klubber.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="form-group">
           <label>Hjemmelag</label>

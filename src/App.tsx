@@ -40,7 +40,7 @@ function App() {
     setSender(true);
 
     if (fane === 'registrer') {
-      if (rolle === 'trener' && klubbkode.trim().length !== 5) {
+      if ((rolle === 'trener' || rolle === 'dommer') && klubbkode.trim().length !== 5) {
         setFeil('Klubbkoden må være 5 tegn.');
         setSender(false);
         return;
@@ -164,9 +164,11 @@ function App() {
               />
             </div>
 
-            {fane === 'registrer' && rolle === 'trener' && (
+            {fane === 'registrer' && (rolle === 'trener' || rolle === 'dommer') && (
               <div className="form-group">
-                <label htmlFor="klubbkode">Klubbkode</label>
+                <label htmlFor="klubbkode">
+                  {rolle === 'trener' ? 'Trenerkode fra klubben' : 'Dommerkode fra klubben'}
+                </label>
                 <input
                   id="klubbkode"
                   type="text"
