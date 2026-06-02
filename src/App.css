@@ -185,19 +185,68 @@ body {
   text-decoration: underline;
 }
 
-.divider {
+.fane-velger {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 18px 0;
-  color: #bbb;
-  font-size: 0.8rem;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e5e5e5;
 }
 
-.divider::before,
-.divider::after {
-  content: '';
+.fane-btn {
   flex: 1;
-  height: 1px;
-  background: #e5e5e5;
+  padding: 10px;
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.fane-btn.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.feil-melding {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.suksess-melding {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #15803d;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 12px;
+}
+
+.bruker-info {
+  color: #444;
+  font-size: 0.95rem;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.loggut-btn {
+  background: #111;
+}
+
+.loggut-btn:hover {
+  background: #333;
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
