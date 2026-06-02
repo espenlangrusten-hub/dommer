@@ -7,6 +7,7 @@ interface Klubb {
   id: string;
   name: string;
   icon_url: string | null;
+  invite_code: string | null;
 }
 
 interface Kamp {
@@ -22,12 +23,19 @@ interface Props {
   onLoggUt: () => void;
 }
 
+function genererKode(): string {
+  const tegn = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 5 }, () => tegn[Math.floor(Math.random() * tegn.length)]).join('');
+}
+
 export default function KlubbDashboard({ userId, onLoggUt }: Props) {
   const [klubb, setKlubb] = useState<Klubb | null>(null);
   const [kamper, setKamper] = useState<Kamp[]>([]);
-  const [antallDommere, setAntallDommere] = useState(0);
+  const [antallTrenere, setAntallTrenere] = useState(0);
   const [laster, setLaster] = useState(true);
   const [visOpprettKamp, setVisOpprettKamp] = useState(false);
+  const [visKodeModal, setVisKodeModal] = useState(false);
+  const [kopiertKode, setKopiertKode] = useState(false);
   const knappRef = useRef<HTMLButtonElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0, near: false });
 
@@ -51,7 +59,10 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
       .eq('user_id', userId)
       .single();
     setKlubb(data ?? null);
-    if (data) await hentKamper(data.id);
+    if (data) {
+      await hentKamper(data.id);
+      await hentAntallTrenere(data.id);
+    }
     setLaster(false);
   };
 
@@ -62,6 +73,37 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
       .eq('club_id', clubId)
       .order('match_date', { ascending: true });
     setKamper(data ?? []);
+  };
+
+  const hentAntallTrenere = async (clubId: string) => {
+    const { count } = await supabase
+      .from('coach_memberships')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', clubId);
+    setAntallTrenere(count ?? 0);
+  };
+
+  const åpneKodeModal = async () => {
+    if (!klubb) return;
+    if (!klubb.invite_code) {
+      const kode = genererKode();
+      const { data } = await supabase
+        .from('clubs')
+        .update({ invite_code: kode })
+        .eq('id', klubb.id)
+        .select()
+        .single();
+      if (data) setKlubb(data);
+    }
+    setVisKodeModal(true);
+  };
+
+  const kopierKode = () => {
+    if (klubb?.invite_code) {
+      navigator.clipboard.writeText(klubb.invite_code);
+      setKopiertKode(true);
+      setTimeout(() => setKopiertKode(false), 2000);
+    }
   };
 
   useEffect(() => {
@@ -92,13 +134,18 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
           )}
           <span className="dash-klubbnavn">{klubb.name}</span>
         </div>
-        <button className="loggut-knapp" onClick={onLoggUt}>Logg ut</button>
+        <div className="header-knapper">
+          <button className="legg-til-trener-knapp" onClick={åpneKodeModal}>
+            + Legg til trenere
+          </button>
+          <button className="loggut-knapp" onClick={onLoggUt}>Logg ut</button>
+        </div>
       </header>
 
       <main className="dash-innhold">
         <div className="statistikk-kort">
-          <div className="stat-tall">{antallDommere}</div>
-          <div className="stat-label">Dommere i klubben</div>
+          <div className="stat-tall">{antallTrenere}</div>
+          <div className="stat-label">Trenere i klubben</div>
         </div>
 
         <div className="seksjon-header">
@@ -150,6 +197,24 @@ export default function KlubbDashboard({ userId, onLoggUt }: Props) {
             hentKamper(klubb.id);
           }}
         />
+      )}
+
+      {visKodeModal && (
+        <div className="modal-overlay" onClick={() => setVisKodeModal(false)}>
+          <div className="modal kode-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Trenerkode</h2>
+              <button className="lukk-btn" onClick={() => setVisKodeModal(false)}>✕</button>
+            </div>
+            <p className="kode-beskrivelse">
+              Del denne koden med trenere. De oppgir den når de registrerer seg som trener.
+            </p>
+            <div className="kode-visning" onClick={kopierKode}>
+              <span className="kode-tekst">{klubb.invite_code}</span>
+              <span className="kopier-hint">{kopiertKode ? 'Kopiert!' : 'Trykk for å kopiere'}</span>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

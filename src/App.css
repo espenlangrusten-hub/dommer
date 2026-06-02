@@ -550,3 +550,90 @@ body {
 .form-select:focus {
   border-color: #2563eb;
 }
+
+.role-selector-tre {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.kode-input {
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.header-knapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.legg-til-trener-knapp {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.legg-til-trener-knapp:hover {
+  background: #dbeafe;
+}
+
+.kode-modal {
+  border-radius: 20px 20px 0 0;
+  text-align: center;
+}
+
+.kode-beskrivelse {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.kode-visning {
+  background: #f0f7ff;
+  border: 2px dashed #2563eb;
+  border-radius: 14px;
+  padding: 24px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-bottom: 8px;
+}
+
+.kode-visning:hover {
+  background: #dbeafe;
+}
+
+.kode-tekst {
+  display: block;
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: 10px;
+  color: #1d4ed8;
+  margin-bottom: 6px;
+}
+
+.kopier-hint {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.trener-badge {
+  display: inline-block;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  margin-left: 8px;
+  vertical-align: middle;
+}

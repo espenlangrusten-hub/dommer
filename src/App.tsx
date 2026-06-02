@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
 import KlubbDashboard from './components/KlubbDashboard';
+import TrenerDashboard from './components/TrenerDashboard';
 import './App.css';
 
-type Role = 'dommer' | 'klubb';
+type Role = 'dommer' | 'klubb' | 'trener';
 type Tab = 'logginn' | 'registrer';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   const [epost, setEpost] = useState('');
   const [passord, setPassord] = useState('');
   const [navn, setNavn] = useState('');
+  const [klubbkode, setKlubbkode] = useState('');
   const [feil, setFeil] = useState('');
   const [melding, setMelding] = useState('');
   const [sender, setSender] = useState(false);
@@ -37,10 +39,15 @@ function App() {
     setSender(true);
 
     if (fane === 'registrer') {
+      if (rolle === 'trener' && klubbkode.trim().length !== 5) {
+        setFeil('Klubbkoden må være 5 tegn.');
+        setSender(false);
+        return;
+      }
       const { error } = await supabase.auth.signUp({
         email: epost,
         password: passord,
-        options: { data: { navn, rolle } },
+        options: { data: { navn, rolle, invite_code: klubbkode.toUpperCase() } },
       });
       if (error) {
         setFeil(error.message);
@@ -65,6 +72,16 @@ function App() {
 
     if (brukerRolle === 'klubb') {
       return <KlubbDashboard userId={bruker.id} onLoggUt={loggUt} />;
+    }
+
+    if (brukerRolle === 'trener') {
+      return (
+        <TrenerDashboard
+          userId={bruker.id}
+          inviteCode={bruker.user_metadata?.invite_code ?? null}
+          onLoggUt={loggUt}
+        />
+      );
     }
 
     return (
@@ -94,19 +111,19 @@ function App() {
           <p>Kobler dommere og klubber</p>
         </div>
 
-        <div className="role-selector">
-          <div
-            className={`role-card ${rolle === 'dommer' ? 'active' : ''}`}
-            onClick={() => setRolle('dommer')}
-          >
-            <span className="role-label">Dommer</span>
-          </div>
-          <div
-            className={`role-card ${rolle === 'klubb' ? 'active' : ''}`}
-            onClick={() => setRolle('klubb')}
-          >
-            <span className="role-label">Klubb</span>
-          </div>
+        <div className="role-selector role-selector-tre">
+          {(['dommer', 'klubb', 'trener'] as Role[]).map((r, i) => (
+            <div
+              key={r}
+              className={`role-card ${rolle === r ? 'active' : ''}`}
+              onClick={() => setRolle(r)}
+              style={{ animationDelay: `${0.1 + i * 0.1}s` }}
+            >
+              <span className="role-label">
+                {r === 'dommer' ? 'Dommer' : r === 'klubb' ? 'Klubb' : 'Trener'}
+              </span>
+            </div>
+          ))}
         </div>
 
         <div className="login-form">
@@ -161,6 +178,22 @@ function App() {
                 required
               />
             </div>
+
+            {fane === 'registrer' && rolle === 'trener' && (
+              <div className="form-group">
+                <label htmlFor="klubbkode">Klubbkode</label>
+                <input
+                  id="klubbkode"
+                  type="text"
+                  placeholder="5-tegns kode fra klubben"
+                  value={klubbkode}
+                  onChange={e => setKlubbkode(e.target.value.toUpperCase())}
+                  maxLength={5}
+                  required
+                  className="kode-input"
+                />
+              </div>
+            )}
 
             {feil && <p className="feil-melding">{feil}</p>}
             {melding && <p className="suksess-melding">{melding}</p>}
