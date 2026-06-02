@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
+import KlubbDashboard from './components/KlubbDashboard';
 import './App.css';
 
 type Role = 'dommer' | 'klubb';
@@ -60,8 +61,12 @@ function App() {
   if (laster) return null;
 
   if (bruker) {
-    const brukerRolle = bruker.user_metadata?.rolle ?? 'ukjent';
-    const brukerNavn = bruker.user_metadata?.navn ?? bruker.email;
+    const brukerRolle = bruker.user_metadata?.rolle ?? 'dommer';
+
+    if (brukerRolle === 'klubb') {
+      return <KlubbDashboard userId={bruker.id} onLoggUt={loggUt} />;
+    }
+
     return (
       <div className="login-page">
         <div className="login-container">
@@ -70,14 +75,11 @@ function App() {
             <p>Kobler dommere og klubber</p>
           </div>
           <div className="login-form">
-            <h2>Velkommen, {brukerNavn}!</h2>
+            <h2>Velkommen, {bruker.user_metadata?.navn ?? bruker.email}!</h2>
             <p className="bruker-info">
-              Logget inn som <strong>{brukerRolle === 'dommer' ? 'Dommer' : 'Klubb'}</strong>
-              <br />{bruker.email}
+              Logget inn som <strong>Dommer</strong><br />{bruker.email}
             </p>
-            <button className="login-btn loggut-btn" onClick={loggUt}>
-              Logg ut
-            </button>
+            <button className="login-btn loggut-btn" onClick={loggUt}>Logg ut</button>
           </div>
         </div>
       </div>

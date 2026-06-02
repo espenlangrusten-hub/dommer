@@ -250,3 +250,303 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ---- Klubb-ikon velger ---- */
+.ikon-velger {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.ikon-label {
+  cursor: pointer;
+  display: block;
+}
+
+.ikon-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #2563eb;
+}
+
+.ikon-placeholder {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  border: 2px dashed #ccc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: #888;
+  text-align: center;
+  gap: 4px;
+  transition: border-color 0.2s;
+}
+
+.ikon-placeholder:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+/* ---- Dashboard ---- */
+.dashboard {
+  min-height: 100vh;
+  background: #f7f8fa;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-header {
+  background: #fff;
+  border-bottom: 1px solid #e5e5e5;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.dash-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.klubb-ikon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.klubb-ikon-placeholder {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.dash-klubbnavn {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.loggut-knapp {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.loggut-knapp:hover {
+  background: #f0f0f0;
+}
+
+.dash-innhold {
+  padding: 24px;
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.statistikk-kort {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.stat-tall {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #2563eb;
+  line-height: 1;
+}
+
+.stat-label {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 6px;
+}
+
+.seksjon-header {
+  margin-bottom: 12px;
+}
+
+.seksjon-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.ingen-kamper {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+
+.kamp-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.kamp-kort {
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.kamp-lag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #111;
+  margin-bottom: 8px;
+}
+
+.vs {
+  color: #aaa;
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.kamp-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.aldersgruppe-badge {
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.kamp-dato {
+  font-size: 0.82rem;
+  color: #666;
+}
+
+.ny-kamp-knapp {
+  width: 100%;
+  padding: 14px;
+  background: #2563eb;
+  border: none;
+  border-radius: 12px;
+  color: #000;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 8px;
+}
+
+.ny-kamp-knapp:hover {
+  background: #1d4ed8;
+}
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  padding: 0;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.modal-header h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.lukk-btn {
+  background: #f0f0f0;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-rad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-select {
+  width: 100%;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  color: #111;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+  appearance: none;
+}
+
+.form-select:focus {
+  border-color: #2563eb;
+}
