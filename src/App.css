@@ -316,7 +316,9 @@ body {
 .dash-logo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .klubb-ikon {
@@ -340,9 +342,12 @@ body {
 }
 
 .dash-klubbnavn {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #111;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .loggut-knapp {
@@ -566,7 +571,9 @@ body {
 .header-knapper {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .legg-til-trener-knapp {
@@ -643,8 +650,8 @@ body {
 
 .legg-til-knapp {
   border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.82rem;
+  padding: 7px 10px;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
