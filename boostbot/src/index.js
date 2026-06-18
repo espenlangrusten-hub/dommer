@@ -4,6 +4,10 @@ const boostorder = require("./commands/boostorder");
 const setupChannels = require("./commands/setupChannels");
 const flow = require("./lib/flow");
 
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 client.once("ready", () => {
