@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Auto Captions for After Effects</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 16px/1.6 -apple-system, "Segoe UI", sans-serif;
+    background: #17181c;
+    color: #e6e6e6;
+    display: flex;
+    justify-content: center;
+    padding: 48px 20px;
+  }
+  main { max-width: 640px; width: 100%; }
+  h1 { font-size: 30px; margin: 0 0 6px; }
+  .tag { color: #9a9a9a; margin: 0 0 32px; }
+  .card {
+    background: #1f2126;
+    border: 1px solid #2c2f36;
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .stat { font-size: 40px; font-weight: 700; color: #7aa2ff; }
+  .stat-label { color: #9a9a9a; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  a.button {
+    display: inline-block;
+    background: #4a7dff;
+    color: #fff;
+    text-decoration: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    margin-top: 12px;
+  }
+  a.button:hover { background: #5b8aff; }
+  code {
+    background: #101114;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  ol { padding-left: 20px; }
+  li { margin-bottom: 8px; }
+  .error { color: #ff8b8b; }
+  footer { color: #6f6f6f; font-size: 13px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Auto Captions</h1>
+  <p class="tag">An After Effects panel that transcribes a clip's audio and types the words onto the timeline exactly as they're spoken.</p>
+
+  <div class="card">
+    <div class="stat-label">Total downloads</div>
+    <div class="stat" id="downloadCount">—</div>
+    <div id="downloadError" class="error"></div>
+    <a class="button" id="downloadLink" href="#" style="display:none;">Download latest (<span id="latestVersion"></span>)</a>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">Setup</h2>
+    <ol>
+      <li>Enable unsigned extensions once per machine — see the <code>README.md</code> inside the downloaded folder for the exact command for your OS.</li>
+      <li>Unzip and copy the <code>ae-auto-captions</code> folder into your CEP extensions directory
+        (macOS: <code>~/Library/Application Support/Adobe/CEP/extensions/</code>,
+        Windows: <code>%APPDATA%\Adobe\CEP\extensions\</code>).</li>
+      <li>Restart After Effects and open <strong>Window → Extensions → Auto Captions</strong>.</li>
+      <li>Paste in your own OpenAI API key, select a layer with audio, and click Transcribe.</li>
+    </ol>
+  </div>
+
+  <footer>Requires your own OpenAI API key (billed to your OpenAI account). Source on <span id="repoLink"></span>.</footer>
+</main>
+
+<script>
+  const OWNER = 'espenlangrusten-hub';
+  const REPO = 'dommer';
+
+  const repoLinkEl = document.getElementById('repoLink');
+  const a = document.createElement('a');
+  a.href = `https://github.com/${OWNER}/${REPO}`;
+  a.textContent = 'GitHub';
+  a.style.color = '#7aa2ff';
+  repoLinkEl.appendChild(a);
+
+  fetch(`https://api.github.com/repos/${OWNER}/${REPO}/releases`)
+    .then((r) => {
+      if (!r.ok) throw new Error(`GitHub API returned ${r.status}`);
+      return r.json();
+    })
+    .then((releases) => {
+      if (!Array.isArray(releases) || releases.length === 0) {
+        throw new Error('No releases published yet.');
+      }
+
+      let total = 0;
+      for (const release of releases) {
+        for (const asset of release.assets || []) {
+          total += asset.download_count || 0;
+        }
+      }
+      document.getElementById('downloadCount').textContent = total.toLocaleString();
+
+      const latest = releases.find((r) => !r.draft && !r.prerelease) || releases[0];
+      const zipAsset = (latest.assets || []).find((a) => a.name.endsWith('.zip'));
+      if (zipAsset) {
+        const link = document.getElementById('downloadLink');
+        link.href = zipAsset.browser_download_url;
+        link.style.display = 'inline-block';
+        document.getElementById('latestVersion').textContent = latest.tag_name;
+      }
+    })
+    .catch((e) => {
+      document.getElementById('downloadCount').textContent = '—';
+      document.getElementById('downloadError').textContent = e.message;
+    });
+</script>
+</body>
+</html>

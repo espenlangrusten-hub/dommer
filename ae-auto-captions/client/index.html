@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Auto Captions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Auto Captions</h1>
+
+  <section>
+    <label for="apiKey">OpenAI API key (stored locally on this machine only)</label>
+    <input type="password" id="apiKey" placeholder="sk-..." />
+
+    <label for="language">Language (optional, e.g. "en" — leave blank to auto-detect)</label>
+    <input type="text" id="language" placeholder="auto-detect" />
+  </section>
+
+  <section>
+    <button id="useLayerBtn">1. Use Selected Layer</button>
+    <div id="layerInfo"></div>
+  </section>
+
+  <section>
+    <label for="mode">Caption style</label>
+    <select id="mode">
+      <option value="word">One word at a time (typewriter)</option>
+      <option value="phrase">Phrase captions (typewriter)</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="fontSize">Font size</label>
+        <input type="text" id="fontSize" value="60" />
+      </div>
+      <div>
+        <label for="position">Position</label>
+        <select id="position">
+          <option value="bottom" selected>Bottom</option>
+          <option value="center">Center</option>
+          <option value="top">Top</option>
+        </select>
+      </div>
+    </div>
+
+    <button id="transcribeBtn" disabled>2. Transcribe</button>
+  </section>
+
+  <section id="previewSection" style="display:none;">
+    <label>Transcript preview</label>
+    <div id="transcript"></div>
+    <button id="applyBtn">3. Apply Captions to Timeline</button>
+  </section>
+
+  <div id="status"></div>
+
+  <script src="lib/cep.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
