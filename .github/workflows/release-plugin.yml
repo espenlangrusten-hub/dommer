@@ -1,0 +1,36 @@
+name: Release Auto Captions plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ae-auto-captions/VERSION'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat ae-auto-captions/VERSION | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Zip plugin
+        run: zip -r "ae-auto-captions-v${{ steps.version.outputs.version }}.zip" ae-auto-captions -x 'ae-auto-captions/.debug'
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Auto Captions v${{ steps.version.outputs.version }}
+          files: ae-auto-captions-v${{ steps.version.outputs.version }}.zip
+          make_latest: true
+          body: |
+            After Effects Auto Captions panel — see `ae-auto-captions/README.md` in the
+            repo for install instructions (enable unsigned extensions, copy the
+            `ae-auto-captions` folder into your CEP extensions directory).
