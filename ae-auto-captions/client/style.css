@@ -1,0 +1,84 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 12px/1.4 -apple-system, "Segoe UI", sans-serif;
+  background: #2b2b2b;
+  color: #d6d6d6;
+  padding: 12px;
+}
+
+h1 {
+  font-size: 14px;
+  margin: 0 0 12px;
+  color: #fff;
+}
+
+section {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #3f3f3f;
+}
+
+label {
+  display: block;
+  margin-bottom: 4px;
+  color: #a0a0a0;
+}
+
+input[type="text"],
+input[type="password"],
+select,
+textarea {
+  width: 100%;
+  padding: 6px;
+  margin-bottom: 8px;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  color: #eee;
+  border-radius: 3px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+.row > * { flex: 1; }
+
+button {
+  padding: 7px 10px;
+  background: #4a7dff;
+  border: none;
+  color: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  width: 100%;
+}
+button:disabled { background: #555; cursor: default; }
+button.secondary { background: #444; }
+
+#layerInfo {
+  font-size: 11px;
+  color: #8fbf8f;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+#status {
+  font-size: 11px;
+  color: #ffb454;
+  min-height: 14px;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+#transcript {
+  max-height: 180px;
+  overflow-y: auto;
+  background: #1e1e1e;
+  border: 1px solid #444;
+  padding: 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
