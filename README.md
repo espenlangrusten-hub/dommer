@@ -1,46 +1,42 @@
-# Getting Started with Create React App
+# Garden Shop 🌱
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A dark-themed store front for Grow a Garden items — built with React (Create React App)
+and deployed to GitHub Pages.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- **Hero landing page** with the dripping-red Garden Shop logo, trust stats and a
+  Shop Now button that scrolls into the store.
+- **Best Sellers + New Items** product grids with pixel-art product images, discount
+  badges, ~2 min delivery tags, and game filter tabs (Grow A Garden 2 / Steal A
+  Brainrot / Grow A Garden), plus a View All page with search.
+- **Working shopping cart** (add, remove, change quantity — persisted in the browser)
+  and a **checkout** flow that generates an order ID.
+- **Claim Order** page: look up an order with order ID + email.
+- **Owner dashboard** at `#/admin` showing live "online right now", visitors today,
+  total visitors, order count, revenue and the full order list.
+  - Passcode is `ADMIN_PASSCODE` in `src/store.tsx` — change it before going live.
+  - Stats are stored in localStorage (static hosting, no backend), so they cover one
+    browser at a time. Hook up a small backend (e.g. Firebase) for global stats.
 
-### `npm start`
+## Development
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+```bash
+npm install
+npm start        # dev server at http://localhost:3000
+npm run build    # production build (served under /dommer/)
+```
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+Pushes to `main` deploy automatically to GitHub Pages via
+`.github/workflows/deploy.yml`.
 
-### `npm test`
+## Custom domain (gardenshop.gg)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Buy `gardenshop.gg` at a registrar that supports `.gg` (e.g. Namecheap or Porkbun).
+2. In the repo settings → Pages, set the custom domain to `gardenshop.gg`.
+3. At the registrar, add a `CNAME`/`ALIAS` record pointing to
+   `espenlangrusten-hub.github.io` (GitHub will also ask for a `CNAME` file in the
+   build — add `public/CNAME` once the domain is active).
+4. Change `homepage` in `package.json` to `https://gardenshop.gg` and redeploy.
 
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+Not affiliated with Roblox Corporation.
