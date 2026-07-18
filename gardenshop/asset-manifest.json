@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/dommer/gardenshop/static/css/main.01a3a5d7.css",
-    "main.js": "/dommer/gardenshop/static/js/main.a352057f.js",
+    "main.css": "/dommer/gardenshop/static/css/main.a9490d9b.css",
+    "main.js": "/dommer/gardenshop/static/js/main.9d302844.js",
     "static/media/LuckiestGuy-400-normal.woff2": "/dommer/gardenshop/static/media/LuckiestGuy-400-normal.863b32af5495122d229c.woff2",
     "static/media/Poppins-800-italic.woff2": "/dommer/gardenshop/static/media/Poppins-800-italic.636c56293cae0efcee1b.woff2",
     "static/media/Poppins-700-italic.woff2": "/dommer/gardenshop/static/media/Poppins-700-italic.95e1d1f12c790b494afe.woff2",
@@ -10,11 +10,11 @@
     "static/media/Poppins-800-normal.woff2": "/dommer/gardenshop/static/media/Poppins-800-normal.ca6a92cea2062ebec667.woff2",
     "static/media/Poppins-700-normal.woff2": "/dommer/gardenshop/static/media/Poppins-700-normal.d86662fe776dae29ea78.woff2",
     "index.html": "/dommer/gardenshop/index.html",
-    "main.01a3a5d7.css.map": "/dommer/gardenshop/static/css/main.01a3a5d7.css.map",
-    "main.a352057f.js.map": "/dommer/gardenshop/static/js/main.a352057f.js.map"
+    "main.a9490d9b.css.map": "/dommer/gardenshop/static/css/main.a9490d9b.css.map",
+    "main.9d302844.js.map": "/dommer/gardenshop/static/js/main.9d302844.js.map"
   },
   "entrypoints": [
-    "static/css/main.01a3a5d7.css",
-    "static/js/main.a352057f.js"
+    "static/css/main.a9490d9b.css",
+    "static/js/main.9d302844.js"
   ]
 }
