@@ -1,5 +1,5 @@
 import React from 'react';
-import { CardArt } from '../art';
+import { SmartArt } from '../art';
 import { getProduct } from '../products';
 import { formatMoney, useCart } from '../store';
 
@@ -28,7 +28,7 @@ export default function CartPage() {
           return (
             <div className="cart-row" key={item.id}>
               <div className="cart-thumb">
-                <CardArt kind={p.art} />
+                <SmartArt kind={p.art} />
               </div>
               <div className="cart-info">
                 <strong>{p.name}</strong>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 type Palette = Record<string, string>;
 
@@ -369,6 +369,160 @@ export function CardArt({ kind }: { kind: string }) {
       <Streaks />
       {renderKind(kind)}
     </svg>
+  );
+}
+
+// ---------- Real product images ----------
+// Drop transparent PNGs into public/img/items/ (raccoon.png, black-dragon.png, …)
+// and the cards below switch from the drawn art to the real renders automatically.
+// A missing file makes that card fall back to the drawn art.
+
+const IMG_BASE = `${process.env.PUBLIC_URL}/img/items/`;
+
+interface ImgSpec {
+  img: string;
+  x: number; // % from left
+  y: number; // % from top
+  w: number; // % width
+  rot?: number; // degrees
+}
+
+interface ImgLayout {
+  items: ImgSpec[];
+  labels?: { text: string; x: number; y: number }[];
+}
+
+function grid(img: string, cols: number, rows: number): ImgSpec[] {
+  const items: ImgSpec[] = [];
+  const w = 82 / cols;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      items.push({
+        img,
+        x: 6 + c * (88 / cols),
+        y: 6 + r * (88 / rows),
+        w,
+        rot: (r + c) % 2 === 0 ? -6 : 6,
+      });
+    }
+  }
+  return items;
+}
+
+export const IMAGE_LAYOUTS: Record<string, ImgLayout> = {
+  'gear-crates-100': {
+    items: [
+      { img: 'gear-crate', x: 6, y: 20, w: 40, rot: -4 },
+      { img: 'gear-crate', x: 48, y: 48, w: 40, rot: 3 },
+    ],
+    labels: [
+      { text: '100X', x: 42, y: 8 },
+      { text: '100X', x: 58, y: 38 },
+    ],
+  },
+  'gear-crates-1000': {
+    items: [
+      { img: 'gear-crate', x: 6, y: 20, w: 42, rot: -4 },
+      { img: 'gear-crate', x: 50, y: 50, w: 38, rot: 3 },
+    ],
+    labels: [
+      { text: '1000X', x: 36, y: 8 },
+      { text: '1000X', x: 56, y: 40 },
+    ],
+  },
+  'pro-bundle': {
+    items: [
+      { img: 'raccoon', x: 4, y: 6, w: 42, rot: -5 },
+      { img: 'golden-dragonfly', x: 48, y: 8, w: 46, rot: 8 },
+      { img: 'unicorn', x: 26, y: 48, w: 46, rot: 2 },
+    ],
+  },
+  'seed-bundle': {
+    items: [
+      { img: 'seeds', x: 4, y: 6, w: 36, rot: -8 },
+      { img: 'seeds', x: 60, y: 10, w: 32, rot: 12 },
+      { img: 'hypno-bloom', x: 28, y: 36, w: 44 },
+      { img: 'seeds', x: 8, y: 58, w: 30, rot: 6 },
+    ],
+  },
+  'dragon-black': { items: [{ img: 'black-dragon', x: 8, y: 10, w: 84 }] },
+  'dragon-purple': { items: [{ img: 'rainbow-black-dragon', x: 8, y: 10, w: 84 }] },
+  raccoon: { items: [{ img: 'raccoon', x: 16, y: 10, w: 68 }] },
+  raccoon3: {
+    items: [
+      { img: 'raccoon', x: 6, y: 6, w: 40, rot: -6 },
+      { img: 'raccoon', x: 54, y: 12, w: 40, rot: 6 },
+      { img: 'raccoon', x: 28, y: 50, w: 42 },
+    ],
+  },
+  flower: { items: [{ img: 'hypno-bloom', x: 18, y: 10, w: 64 }] },
+  seedbox: { items: [{ img: 'seed-box', x: 13, y: 14, w: 74 }] },
+  'ultra-bundle': {
+    items: [
+      { img: 'golden-dragonfly', x: 2, y: 4, w: 38, rot: -8 },
+      { img: 'rainbow-black-dragon', x: 50, y: 2, w: 44, rot: 6 },
+      { img: 'raccoon', x: 6, y: 42, w: 34, rot: -4 },
+      { img: 'seeds', x: 66, y: 46, w: 28, rot: 10 },
+      { img: 'unicorn', x: 30, y: 60, w: 38 },
+    ],
+  },
+  dragonfly12: { items: grid('golden-dragonfly', 4, 3) },
+  unicorn12: { items: grid('unicorn', 4, 3) },
+  firefly3: {
+    items: [
+      { img: 'firefly', x: 8, y: 8, w: 38, rot: -8 },
+      { img: 'firefly', x: 54, y: 20, w: 38, rot: 8 },
+      { img: 'firefly', x: 24, y: 54, w: 38, rot: -3 },
+    ],
+  },
+};
+
+/** Images we already know are missing, so re-mounted cards skip the retry. */
+const missingImages = new Set<string>();
+
+/**
+ * Product card image: real PNG collage when the files exist in
+ * public/img/items/, drawn pixel art otherwise.
+ */
+export function SmartArt({ kind }: { kind: string }) {
+  const layout = IMAGE_LAYOUTS[kind];
+  const [fallback, setFallback] = useState(
+    () => !layout || layout.items.some(it => missingImages.has(it.img))
+  );
+
+  if (fallback || !layout) return <CardArt kind={kind} />;
+
+  return (
+    <div className="img-art">
+      <svg viewBox="0 0 100 100" className="card-art" preserveAspectRatio="xMidYMid slice">
+        <rect width="100" height="100" fill="#2e9bf5" />
+        <Streaks />
+      </svg>
+      {layout.items.map((it, i) => (
+        <img
+          key={i}
+          src={`${IMG_BASE}${it.img}.png`}
+          alt=""
+          draggable={false}
+          className="img-art-item"
+          style={{
+            left: `${it.x}%`,
+            top: `${it.y}%`,
+            width: `${it.w}%`,
+            transform: it.rot ? `rotate(${it.rot}deg)` : undefined,
+          }}
+          onError={() => {
+            missingImages.add(it.img);
+            setFallback(true);
+          }}
+        />
+      ))}
+      {layout.labels?.map((l, i) => (
+        <span key={i} className="img-art-label" style={{ left: `${l.x}%`, top: `${l.y}%` }}>
+          {l.text}
+        </span>
+      ))}
+    </div>
   );
 }
 

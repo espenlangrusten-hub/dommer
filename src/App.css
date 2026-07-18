@@ -459,6 +459,35 @@ main {
   display: block;
 }
 
+.img-art {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.img-art .card-art {
+  position: absolute;
+  inset: 0;
+}
+
+.img-art-item {
+  position: absolute;
+  filter: drop-shadow(0 4px 6px rgba(0, 40, 90, 0.35));
+  user-select: none;
+  pointer-events: none;
+}
+
+.img-art-label {
+  position: absolute;
+  font-size: clamp(18px, 2vw, 26px);
+  font-weight: 800;
+  font-style: italic;
+  color: #fff;
+  text-shadow: 2px 2px 0 #1c3d63, -1px -1px 0 #1c3d63, 1px -1px 0 #1c3d63, -1px 1px 0 #1c3d63;
+  pointer-events: none;
+}
+
 .badge {
   position: absolute;
   font-size: 12px;

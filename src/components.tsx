@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { CardArt, Logo } from './art';
+import { Logo, SmartArt } from './art';
 import { discountPct, Product } from './products';
 import { formatMoney, useCart } from './store';
 
@@ -86,7 +86,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <div className="product-card">
       <div className="card-image">
-        <CardArt kind={product.art} />
+        <SmartArt kind={product.art} />
         <span className="badge badge-discount">-{discountPct(product)}%</span>
         {product.isNew && <span className="badge badge-new">NEW</span>}
         <span className="badge badge-delivery">⚡ ~2 min</span>
