@@ -1,0 +1,21 @@
+{
+  "name": "dommer-join-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Discord bot that moves opted-in members between servers using the OAuth2 guilds.join scope",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy-commands": "node src/deploy-commands.js",
+    "gen-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
