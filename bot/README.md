@@ -36,42 +36,74 @@ servers you actually run.
 
 ### 1. Create the application
 
-At <https://discord.com/developers/applications>, create an app, then:
+At <https://discord.com/developers/applications>, click **New Application**.
+You'll need two values from it, and the wizard tells you where to click:
 
-- **Bot** tab → **Reset Token** → copy it into `DISCORD_TOKEN`.
-  No privileged intents are needed; leave them all off.
-- **OAuth2** tab → copy the **Client ID** and **Client Secret**.
-- **OAuth2** tab → **Redirects** → add your callback URL, e.g.
-  `https://your-domain.example/callback`. It must match `OAUTH_REDIRECT_URI`
-  character for character.
+- **Bot** tab → **Reset Token**. No privileged intents are needed — leave them off.
+- **OAuth2** tab → **Client Secret** → **Reset Secret**.
 
 ### 2. Invite the bot to *both* servers
 
-Use the OAuth2 URL Generator with scopes `bot` + `applications.commands`, and
-the **Create Instant Invite** permission. That permission is what authorizes the
-add-member call — without it in the *target* server, `/join` fails with a 403.
+**OAuth2 → URL Generator**, tick scopes `bot` and `applications.commands`, then
+tick the **Create Instant Invite** permission. That permission is what
+authorizes the add-member call — without it in the *target* server, `/join`
+fails with a 403. Open the generated URL once per server.
 
-### 3. Configure and run
+### 3. Run the wizard
 
 ```bash
 cd bot
 npm install
-cp .env.example .env
-npm run gen-key          # paste the output into ENCRYPTION_KEY
-# fill in the rest of .env
-npm run deploy-commands  # registers the slash commands
+npm run setup
+```
+
+It validates your bot token against Discord on the spot, detects your client ID
+automatically, lists the servers the bot is in so you can pick the target from a
+menu (flagging any that lack **Create Invite**), generates the encryption key,
+and writes `.env` for you. It also prints the exact redirect URL to paste into
+**OAuth2 → Redirects** — that has to match character for character.
+
+### 4. Check and start
+
+```bash
+npm run doctor   # verifies token, permissions, and redirect URI
 npm start
 ```
 
-Set `DEV_GUILD_ID` while testing so commands appear instantly instead of taking
-up to an hour to propagate globally.
+Slash commands register themselves on startup, so there's no separate deploy
+step. `npm run doctor` is the thing to run whenever something behaves oddly — it
+checks each external dependency and tells you which one is wrong.
 
-The web server must be reachable at `OAUTH_REDIRECT_URI` over HTTPS — Discord
-won't redirect to bare `localhost`. For local testing, front it with a tunnel:
+## Making it reachable
+
+The wizard defaults to `http://localhost:3000`, and Discord does accept
+`http://localhost` redirect URIs, so **you can test the whole flow on your own
+machine with no tunnel**. Authorize yourself, then run `/join` and watch it work.
+
+For other members to opt in, though, the page has to be reachable from *their*
+browsers, so localhost isn't enough. Two options:
+
+**Quick tunnel** — good for a one-off migration you supervise:
 
 ```bash
 cloudflared tunnel --url http://localhost:3000
 ```
+
+Put the printed `https://…trycloudflare.com` URL into `PUBLIC_BASE_URL`, add
+`<that URL>/callback` to the portal's redirect list, and restart. Note the URL
+changes every time you restart the tunnel, and you have to update both places
+again — which is why this suits a single sitting rather than a permanent setup.
+
+**Deploy it** — for something that stays up. A `Dockerfile` is included:
+
+```bash
+docker build -t join-bot .
+docker run -d --env-file .env -p 3000:3000 -v join-bot-data:/app/data join-bot
+```
+
+Mount the volume. `data/consents.json` holds every authorization you've
+collected, and losing it means asking everyone to opt in again. Set
+`PUBLIC_BASE_URL` to your real domain and register the matching `/callback`.
 
 ## Commands
 
@@ -109,7 +141,9 @@ npm test
 ```
 
 Covers invite/guild-ID parsing, the encryption round-trip (including tamper
-rejection), and OAuth state signing.
+rejection), and OAuth state signing. The parts that talk to Discord — token
+exchange, member adds, rate-limit retries — aren't covered by automated tests;
+`npm run doctor` is what exercises those against the live API.
 
 ## Relationship to the rest of this repo
 

@@ -8,10 +8,12 @@
     "node": ">=20"
   },
   "scripts": {
+    "setup": "node src/setup.js",
     "start": "node src/index.js",
+    "doctor": "node src/doctor.js",
     "deploy-commands": "node src/deploy-commands.js",
-    "gen-key": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
-    "test": "node --test src/**/*.test.js"
+    "gen-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('hex'))\"",
+    "test": "node --test \"src/**/*.test.js\""
   },
   "dependencies": {
     "discord.js": "^14.16.3",

@@ -1,6 +1,7 @@
-import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
+import { Client, GatewayIntentBits, Events, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { config } from './config.js';
 import { commands } from './commands.js';
+import { registerCommands } from './register.js';
 
 export function createBot(store) {
   // Guilds is enough — nothing here reads message content or member lists.
@@ -10,17 +11,28 @@ export function createBot(store) {
   const getTargetGuildNames = () =>
     config.allowedTargetGuilds.map((id) => client.guilds.cache.get(id)?.name ?? `Unknown server (${id})`);
 
-  client.once(Events.ClientReady, (ready) => {
+  client.once(Events.ClientReady, async (ready) => {
     console.log(`[bot] logged in as ${ready.user.tag}`);
     console.log(`[bot] ${store.size} stored consent(s)`);
 
+    // Registering on every boot keeps the commands in sync without a separate
+    // step, which is one less thing to forget after editing a command.
+    try {
+      const { count, scope } = await registerCommands();
+      console.log(`[bot] registered ${count} slash command(s) ${scope}`);
+    } catch (error) {
+      console.error('[bot] could not register slash commands:', error.message);
+      console.error('[bot] check DISCORD_CLIENT_ID — the commands may be stale until this succeeds');
+    }
+
     for (const id of config.allowedTargetGuilds) {
       const guild = client.guilds.cache.get(id);
-      if (guild) {
-        const canInvite = guild.members.me?.permissions.has('CreateInstantInvite');
-        console.log(`[bot] target ${guild.name} (${id}) — Create Invite: ${canInvite ? 'yes' : 'NO, /join will fail'}`);
+      if (!guild) {
+        console.warn(`[bot] ⚠ target ${id} is allowlisted but I'm not in that server — invite me there`);
+      } else if (!guild.members.me?.permissions.has(PermissionFlagsBits.CreateInstantInvite)) {
+        console.warn(`[bot] ⚠ missing "Create Invite" in ${guild.name} — /join will fail with a 403`);
       } else {
-        console.warn(`[bot] target ${id} is allowlisted but I'm not in that server`);
+        console.log(`[bot] ✓ target ready: ${guild.name}`);
       }
     }
   });
