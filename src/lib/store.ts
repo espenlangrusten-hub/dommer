@@ -25,9 +25,9 @@ export type Profile = {
   claims: Claim[];
 };
 
-export const AD_REWARD = 1;
-export const REFERRAL_REWARD = 5;
-export const WELCOME_BONUS = 2;
+export const AD_REWARD: number = 2;
+export const REFERRAL_REWARD: number = 5;
+export const WELCOME_BONUS: number = 2;
 export const JOIN_BONUS = 1; // what the invited player gets on top of the welcome
 export const AD_COOLDOWN_MS = 60_000;
 export const AD_DAILY_LIMIT = 20;
@@ -55,6 +55,11 @@ function write(key: string, value: unknown): void {
   } catch {
     /* storage full or blocked (private mode) — progress just won't persist */
   }
+}
+
+/** "1 credit" / "2 credits" */
+export function creditLabel(n: number): string {
+  return `${n} ${n === 1 ? 'credit' : 'credits'}`;
 }
 
 export function today(): string {

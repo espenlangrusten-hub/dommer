@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { REWARDS, Reward, SHOP_NAME, rewardImage } from '../lib/rewards';
-import { Claim } from '../lib/store';
+import { Claim, creditLabel } from '../lib/store';
 
 type Props = {
   balance: number;
@@ -84,7 +84,7 @@ function RewardCard({
         disabled={!affordable}
         onClick={onRedeem}
       >
-        {reward.cost} {reward.cost === 1 ? 'credit' : 'credits'}
+        {creditLabel(reward.cost)}
       </button>
     </div>
   );

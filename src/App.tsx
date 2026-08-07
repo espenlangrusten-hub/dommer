@@ -12,6 +12,7 @@ import {
   AD_REWARD,
   Profile,
   adReady,
+  creditLabel,
   captureRefFromUrl,
   grantAdReward,
   loadProfile,
@@ -104,7 +105,7 @@ export default function App() {
   const handleClaimAd = () => {
     setProfile(grantAdReward(profile));
     setAdOpen(false);
-    flash(`+${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'} added`);
+    flash(`+${creditLabel(AD_REWARD)} added`);
   };
 
   const handleRedeem = (rewardId: string) => {
@@ -165,8 +166,8 @@ export default function App() {
             </span>
           </header>
           <p className="card-sub">
-            One short ad, {AD_REWARD} {AD_REWARD === 1 ? 'credit' : 'credits'}.
-            There's a one-minute cooldown between them.
+            One short ad, {creditLabel(AD_REWARD)}. There's a one-minute
+            cooldown between them.
           </p>
           <button
             className="watch-btn"
@@ -175,7 +176,7 @@ export default function App() {
           >
             <span className="watch-icon">▶</span>
             {ad.ok
-              ? `Watch an ad · +${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'}`
+              ? `Watch an ad · +${creditLabel(AD_REWARD)}`
               : cooldown > 0 && profile.adsToday < AD_DAILY_LIMIT
               ? `Next ad in ${cooldown}s`
               : ad.reason}

@@ -51,11 +51,11 @@ The currency is **credits**.
 | --- | --- |
 | Signing in the first time | 2 credits |
 | Signing in through someone's invite link | 1 credit to you, 5 to them |
-| Watching an ad | 1 credit, 1 minute cooldown, 20 per day |
+| Watching an ad | 2 credits, 1 minute cooldown, 20 per day |
 
 Earn rates live at the top of `src/lib/store.ts`; the reward catalogue and its
 prices live in `src/lib/rewards.ts`. At the current rates a maxed-out day of
-ads is 20 credits, so the 75-credit Raccoon is about four days of watching, or
+ads is 40 credits, so the 75-credit Raccoon is about two days of watching, or
 15 invites.
 
 ### Garden Valley catalogue
@@ -87,7 +87,7 @@ public/rewards/raccoon.png
 
 Square images look best — they're cropped to a square tile. Any file that is
 missing falls back to an emoji stand-in, so the shop never shows a broken
-image.
+image; `golden-dragonfly.png` and `raccoon.png` are still stand-ins.
 
 ## What is not real yet
 

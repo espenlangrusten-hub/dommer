@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AD_DURATION_S, AD_REWARD } from '../lib/store';
+import { AD_DURATION_S, AD_REWARD, creditLabel } from '../lib/store';
 
 type Props = {
   onClaim: () => void;
@@ -54,7 +54,7 @@ export default function AdModal({ onClaim, onClose }: Props) {
           {done ? (
             <div className="ad-done">
               <span className="ad-done-icon">🌱</span>
-              <p>+{AD_REWARD} {AD_REWARD === 1 ? 'credit is' : 'credits are'} yours.</p>
+              <p>You earned {creditLabel(AD_REWARD)}.</p>
             </div>
           ) : (
             <div className="ad-placeholder">
@@ -77,7 +77,7 @@ export default function AdModal({ onClaim, onClose }: Props) {
             onClaim();
           }}
         >
-          {done ? `Claim +${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'}` : `Claim in ${left}s`}
+          {done ? `Claim +${creditLabel(AD_REWARD)}` : `Claim in ${left}s`}
         </button>
       </div>
     </div>
