@@ -1,46 +1,91 @@
-# Getting Started with Create React App
+# Seed Circle — referrals & rewards for Grow a Garden 2
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A fan site where players sign in with their Roblox account, invite friends,
+watch rewarded ads, and trade the seeds they earn for in-game loot.
 
-## Available Scripts
+Built with Create React App + TypeScript, deployed as a static site to GitHub
+Pages.
 
-In the project directory, you can run:
+## Running it
 
-### `npm start`
+```bash
+npm install
+npm start          # http://localhost:3000
+npm run build      # production build into ./build
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds and
+publishes to GitHub Pages.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Sign in with Roblox
 
-### `npm test`
+The site uses Roblox's OAuth 2.0 / OpenID Connect with PKCE, so it works
+without a server or client secret.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Create an OAuth app at
+   [create.roblox.com/dashboard/credentials](https://create.roblox.com/dashboard/credentials).
+2. Set the app type to **public** (PKCE), scopes `openid` and `profile`.
+3. Add the redirect URI — it has to match exactly, including the trailing
+   slash:
+   - `https://espenlangrusten-hub.github.io/dommer/`
+   - `http://localhost:3000/` for local development
+4. Copy `.env.example` to `.env` and set `REACT_APP_ROBLOX_CLIENT_ID`.
 
-### `npm run build`
+For the GitHub Pages build, add the same value as a repository variable and
+pass it to the build step in the workflow.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+**Without a client ID the site runs in demo mode** — you type a username and
+everything else works locally. That's the state it ships in, so the site is
+usable before the Roblox app exists.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+If the browser blocks the token request with a CORS error, Roblox has not
+whitelisted the origin for that app; the fix is to proxy
+`POST /oauth/v1/token` through a small backend rather than to loosen anything
+client-side.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## How the economy works
 
-### `npm run eject`
+| Action | Reward |
+| --- | --- |
+| Signing in the first time | 100 seeds |
+| Signing in through someone's invite link | 50 seeds to you, 250 to them |
+| Watching an ad | 25 seeds, 1 minute cooldown, 20 per day |
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+Seeds are spent in the rewards shop, which mints a claim code the player
+redeems in-game. Costs and items live in `src/lib/rewards.ts`.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## What is not real yet
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Two things are deliberately stubbed, because both need infrastructure this
+static site doesn't have:
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+**Referrals are stored in `localStorage`** (`src/lib/store.ts`). A friend who
+opens your link on their own phone gets their bonus, but their signup can't
+credit your browser, and nothing stops someone from editing their own balance.
+Making this real needs a small backend with:
 
-## Learn More
+- a `users` table keyed by the Roblox `sub` from the ID token, so one Roblox
+  account can be referred exactly once,
+- a `referrals` table written server-side at first sign-in,
+- a balance the client reads but never writes.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+**The ad is a 30-second placeholder** (`src/components/AdModal.tsx`). Mount a
+real rewarded unit in the `#ad-stage` element and call `onClaim` from the
+network's reward callback instead of the timer. The cooldown, daily cap, and
+payout logic around it stay as they are — but note that a client-side call is
+still spoofable, so the payout should move behind the network's
+server-side-verification callback at the same time as the backend above.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Layout
+
+```
+src/
+  App.tsx                  shell, session handling, wiring
+  lib/roblox.ts            OAuth PKCE flow + demo identities
+  lib/store.ts             balances, referral ledger, ad limits (localStorage)
+  lib/rewards.ts           the reward catalogue
+  components/              Login, AdModal, ReferralCard, RewardsShop, Leaderboard
+```
+
+Not affiliated with or endorsed by Roblox Corporation or the Grow a Garden
+developers.

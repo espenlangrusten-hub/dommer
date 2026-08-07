@@ -1,87 +1,214 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import './App.css';
+import Login from './components/Login';
+import AdModal from './components/AdModal';
+import ReferralCard from './components/ReferralCard';
+import RewardsShop from './components/RewardsShop';
+import Leaderboard from './components/Leaderboard';
+import { REWARDS } from './lib/rewards';
+import { callbackError, completeLogin, RobloxUser } from './lib/roblox';
+import {
+  AD_DAILY_LIMIT,
+  AD_REWARD,
+  Profile,
+  adReady,
+  captureRefFromUrl,
+  grantAdReward,
+  loadProfile,
+  loadSession,
+  redeem,
+  referralSeeds,
+  referralsFor,
+  saveSession,
+  spendableSeeds,
+} from './lib/store';
 
-type Role = 'dommer' | 'klubb';
+export default function App() {
+  const [user, setUser] = useState<RobloxUser | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [adOpen, setAdOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
 
-function App() {
-  const [rolle, setRolle] = useState<Role>('dommer');
-  const [epost, setEpost] = useState('');
-  const [passord, setPassord] = useState('');
+  const signIn = useCallback((u: RobloxUser) => {
+    saveSession(u);
+    setUser(u);
+    setProfile(loadProfile(u));
+  }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`Logger inn som ${rolle === 'dommer' ? 'dommer' : 'klubb'}: ${epost}`);
+  // Resume a session, or finish the Roblox redirect we came back from.
+  useEffect(() => {
+    captureRefFromUrl();
+    const oauthError = callbackError();
+    if (oauthError) {
+      setError(oauthError);
+      setBusy(false);
+      return;
+    }
+
+    let cancelled = false;
+    completeLogin()
+      .then(u => {
+        if (cancelled) return;
+        if (u) {
+          signIn(u);
+        } else {
+          const existing = loadSession();
+          if (existing) signIn(existing);
+        }
+      })
+      .catch(e => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Login failed.');
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [signIn]);
+
+  // Ticks the ad cooldown display.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const flash = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2600);
+  };
+
+  const signOut = () => {
+    saveSession(null);
+    setUser(null);
+    setProfile(null);
+  };
+
+  if (!user || !profile) {
+    return (
+      <div className="page">
+        <Login onDemoLogin={signIn} error={error} busy={busy} />
+      </div>
+    );
+  }
+
+  const referrals = referralsFor(profile.referralCode);
+  const balance = spendableSeeds(profile);
+  const ad = adReady(profile);
+  const cooldown = Math.max(0, Math.ceil((profile.lastAdAt + 60_000 - now) / 1000));
+
+  const handleClaimAd = () => {
+    setProfile(grantAdReward(profile));
+    setAdOpen(false);
+    flash(`+${AD_REWARD} seeds added`);
+  };
+
+  const handleRedeem = (rewardId: string) => {
+    const reward = REWARDS.find(r => r.id === rewardId);
+    if (!reward) return;
+    const next = redeem(profile, reward.name, reward.cost);
+    if (!next) {
+      flash('Not enough seeds yet.');
+      return;
+    }
+    setProfile(next);
+    flash(`${reward.name} unlocked — claim code below`);
   };
 
   return (
-    <div className="login-page">
-      <div className="login-container">
-        <div className="login-logo">
-          <span className="whistle-icon">🏟️</span>
-          <h1>DommerJob</h1>
-          <p>Kobler dommere og klubber</p>
-        </div>
-
-        <div className="role-selector">
-          <div
-            className={`role-card ${rolle === 'dommer' ? 'active' : ''}`}
-            onClick={() => setRolle('dommer')}
-          >
-            <span className="role-icon">🟡</span>
-            <span className="role-label">Dommer</span>
-          </div>
-          <div
-            className={`role-card ${rolle === 'klubb' ? 'active' : ''}`}
-            onClick={() => setRolle('klubb')}
-          >
-            <span className="role-icon">🏆</span>
-            <span className="role-label">Klubb</span>
+    <div className="page">
+      <header className="topbar">
+        <div className="brand small">
+          <span className="brand-mark">🌱</span>
+          <div>
+            <h1>Seed Circle</h1>
+            <p className="brand-sub">Grow a Garden 2</p>
           </div>
         </div>
-
-        <div className="login-form">
-          <h2>
-            {rolle === 'dommer' ? 'Logg inn som dommer' : 'Logg inn som klubb'}
-          </h2>
-          <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="epost">E-postadresse</label>
-              <input
-                id="epost"
-                type="email"
-                placeholder="din@epost.no"
-                value={epost}
-                onChange={e => setEpost(e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="passord">Passord</label>
-              <input
-                id="passord"
-                type="password"
-                placeholder="••••••••"
-                value={passord}
-                onChange={e => setPassord(e.target.value)}
-                required
-              />
-            </div>
-            <button type="submit" className="login-btn">
-              Logg inn
+        <div className="account">
+          <div className="balance">
+            <span className="balance-value">{balance.toLocaleString()}</span>
+            <span className="balance-label">seeds</span>
+          </div>
+          {user.avatar ? (
+            <img className="avatar" src={user.avatar} alt="" />
+          ) : (
+            <span className="avatar-dot big">
+              {user.username.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div className="account-meta">
+            <b>{user.displayName}</b>
+            <button className="link-btn" onClick={signOut}>
+              Sign out
             </button>
-          </form>
-
-          <div className="divider">eller</div>
-
-          <div className="form-footer">
-            <a href="#glemtpassord">Glemt passord?</a>
-            &nbsp;&nbsp;·&nbsp;&nbsp;
-            Ny bruker? <a href="#registrer">Registrer deg</a>
           </div>
         </div>
-      </div>
+      </header>
+
+      {user.demo && (
+        <div className="demo-strip">
+          Demo mode — progress is saved in this browser only.
+        </div>
+      )}
+
+      <main className="layout">
+        <section className="card hero-card">
+          <header className="card-head">
+            <h2>Watch &amp; earn</h2>
+            <span className="pill">
+              {profile.adsToday}/{AD_DAILY_LIMIT} today
+            </span>
+          </header>
+          <p className="card-sub">
+            One short ad, {AD_REWARD} seeds. There's a one-minute cooldown
+            between them.
+          </p>
+          <button
+            className="watch-btn"
+            disabled={!ad.ok}
+            onClick={() => setAdOpen(true)}
+          >
+            <span className="watch-icon">▶</span>
+            {ad.ok
+              ? `Watch an ad · +${AD_REWARD} 🌱`
+              : cooldown > 0 && profile.adsToday < AD_DAILY_LIMIT
+              ? `Next ad in ${cooldown}s`
+              : ad.reason}
+          </button>
+
+          <div className="stats">
+            <div>
+              <b>{profile.adsWatched}</b>
+              <span>ads watched</span>
+            </div>
+            <div>
+              <b>{referrals.length}</b>
+              <span>friends invited</span>
+            </div>
+            <div>
+              <b>{(profile.totalEarned + referralSeeds(profile.referralCode)).toLocaleString()}</b>
+              <span>seeds earned</span>
+            </div>
+          </div>
+        </section>
+
+        <ReferralCard code={profile.referralCode} referrals={referrals} />
+        <RewardsShop balance={balance} claims={profile.claims} onRedeem={handleRedeem} />
+        <Leaderboard username={user.username} referrals={referrals.length} />
+      </main>
+
+      <footer className="footer">
+        Fan-made. Not affiliated with or endorsed by Roblox Corporation or the
+        Grow a Garden developers.
+      </footer>
+
+      {adOpen && <AdModal onClaim={handleClaimAd} onClose={() => setAdOpen(false)} />}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
-
-export default App;
