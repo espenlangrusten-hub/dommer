@@ -933,3 +933,109 @@ input:focus {
     transition: none !important;
   }
 }
+
+/* ---------- admin / claims ---------- */
+
+.account-links {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-line);
+}
+
+.chip-on {
+  color: var(--leaf);
+  background: rgba(87, 209, 106, 0.14);
+  border-color: rgba(87, 209, 106, 0.35);
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-actions .ghost-btn.small {
+  width: auto;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.claims-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.claims-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--panel-line);
+}
+
+.claims-table td {
+  padding: 11px 12px 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.claims-table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--gold);
+  background: rgba(245, 196, 81, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.row-sent {
+  opacity: 0.45;
+}
+
+.row-id {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.claims-table input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--leaf);
+  cursor: pointer;
+  padding: 0;
+}
+
+.admin-warning {
+  margin-top: 16px;
+}

@@ -6,6 +6,7 @@ import ReferralCard from "./components/ReferralCard";
 import RewardsShop from "./components/RewardsShop";
 import Leaderboard from "./components/Leaderboard";
 import AdSlot from "./components/AdSlot";
+import AdminPage, { isAdmin } from "./components/AdminPage";
 import { REWARDS } from "./lib/rewards";
 import { SLOT_INLINE, SLOT_SIDEBAR } from "./lib/adsense";
 import { callbackError, completeLogin, RobloxUser } from "./lib/roblox";
@@ -34,6 +35,7 @@ export default function App() {
   const [adOpen, setAdOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [route, setRoute] = useState(window.location.hash);
 
   const signIn = useCallback((u: RobloxUser) => {
     saveSession(u);
@@ -75,6 +77,13 @@ export default function App() {
     };
   }, [signIn]);
 
+  // Tiny hash router: #admin is the fulfilment page.
+  useEffect(() => {
+    const onHash = () => setRoute(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
   // Ticks the ad cooldown display.
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 1000);
@@ -96,6 +105,29 @@ export default function App() {
     return (
       <div className="page">
         <Login onDemoLogin={signIn} error={error} busy={busy} />
+      </div>
+    );
+  }
+
+  if (route === "#admin") {
+    return (
+      <div className="page">
+        <header className="topbar">
+          <div className="brand small">
+            <span className="brand-mark">🌱</span>
+            <div>
+              <h1>Garden Rewards</h1>
+              <p className="brand-sub">Admin</p>
+            </div>
+          </div>
+        </header>
+        <AdminPage
+          user={user}
+          onBack={() => {
+            window.location.hash = "";
+            setRoute("");
+          }}
+        />
       </div>
     );
   }
@@ -150,9 +182,22 @@ export default function App() {
           )}
           <div className="account-meta">
             <b>{user.displayName}</b>
-            <button className="link-btn" onClick={signOut}>
-              Sign out
-            </button>
+            <span className="account-links">
+              {isAdmin(user) && (
+                <button
+                  className="link-btn"
+                  onClick={() => {
+                    window.location.hash = "admin";
+                    setRoute("#admin");
+                  }}
+                >
+                  Claims
+                </button>
+              )}
+              <button className="link-btn" onClick={signOut}>
+                Sign out
+              </button>
+            </span>
           </div>
         </div>
       </header>

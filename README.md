@@ -50,13 +50,13 @@ The currency is **credits**.
 | Action | Reward |
 | --- | --- |
 | Signing in the first time | 2 credits |
-| Signing in through someone's invite link | 1 credit to you, 5 to them |
+| Signing in through someone's invite link | a free 1x Super Sprinkler to you, 2 credits to them |
 | Watching an ad | 2 credits, 1 minute cooldown, 20 per day |
 
 Earn rates live at the top of `src/lib/store.ts`; the reward catalogue and its
 prices live in `src/lib/rewards.ts`. At the current rates a maxed-out day of
 ads is 40 credits, so the 75-credit Raccoon is about two days of watching, or
-15 invites.
+38 invites.
 
 ### Garden Valley catalogue
 
@@ -88,6 +88,28 @@ public/rewards/raccoon.png
 Square images look best — they're cropped to a square tile. Any file that is
 missing falls back to an emoji stand-in, so the shop never shows a broken
 image; `golden-dragonfly.png` and `raccoon.png` are still stand-ins.
+
+## Sending out the rewards
+
+`#admin` (the "Claims" link in the header) lists every claim with the Roblox
+username, the Roblox user ID, the reward, the claim code and the date, so items
+can be delivered in-game. Rows can be ticked off as sent, and the whole list
+copies out as CSV.
+
+Restrict it with `REACT_APP_ADMIN_ROBLOX_IDS` — a comma-separated list of
+Roblox user IDs. Leaving it empty lets any signed-in player open the page.
+Client-side gating is a speed bump, not security; it is only adequate because
+there is no shared data behind it yet.
+
+**The page reads localStorage, so it only shows claims made in the browser you
+open it in.** That is the honest limit of a site with no server: other people's
+redemptions live in their own browsers. Two ways out:
+
+1. Set `REACT_APP_CLAIM_WEBHOOK` to a Discord webhook URL. Every claim is
+   posted there the moment it happens, so nothing is missed. The URL is visible
+   in the public bundle, so anyone can find it and post junk to that channel.
+2. Build the backend (below). Then the admin page reads one shared list, and
+   balances stop being editable by the players who own them.
 
 ## Ads
 
