@@ -54,7 +54,7 @@ export default function AdModal({ onClaim, onClose }: Props) {
           {done ? (
             <div className="ad-done">
               <span className="ad-done-icon">🌱</span>
-              <p>+{AD_REWARD} seeds are yours.</p>
+              <p>+{AD_REWARD} {AD_REWARD === 1 ? 'credit is' : 'credits are'} yours.</p>
             </div>
           ) : (
             <div className="ad-placeholder">
@@ -77,7 +77,7 @@ export default function AdModal({ onClaim, onClose }: Props) {
             onClaim();
           }}
         >
-          {done ? `Claim +${AD_REWARD} seeds` : `Claim in ${left}s`}
+          {done ? `Claim +${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'}` : `Claim in ${left}s`}
         </button>
       </div>
     </div>

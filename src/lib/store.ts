@@ -14,7 +14,7 @@ export type Claim = { id: string; reward: string; code: string; at: number };
 export type Profile = {
   userId: string;
   username: string;
-  seeds: number;
+  credits: number;
   totalEarned: number;
   referralCode: string;
   referredBy: string | null;
@@ -25,17 +25,18 @@ export type Profile = {
   claims: Claim[];
 };
 
-export const AD_REWARD = 25;
-export const REFERRAL_REWARD = 250;
-export const WELCOME_BONUS = 100;
+export const AD_REWARD = 1;
+export const REFERRAL_REWARD = 5;
+export const WELCOME_BONUS = 2;
+export const JOIN_BONUS = 1; // what the invited player gets on top of the welcome
 export const AD_COOLDOWN_MS = 60_000;
 export const AD_DAILY_LIMIT = 20;
 export const AD_DURATION_S = 30;
 
-const PROFILE_KEY = 'gg2.profile';
-const LEDGER_KEY = 'gg2.ledger';
+const PROFILE_KEY = 'gg2.v2.profile';
+const LEDGER_KEY = 'gg2.v2.ledger';
 const PENDING_REF_KEY = 'gg2.pendingRef';
-const SESSION_KEY = 'gg2.session';
+const SESSION_KEY = 'gg2.v2.session';
 
 type Ledger = Record<string, Referral[]>;
 
@@ -108,7 +109,7 @@ export function loadProfile(user: RobloxUser): Profile {
   const fresh: Profile = {
     userId: user.id,
     username: user.username,
-    seeds: WELCOME_BONUS,
+    credits: WELCOME_BONUS,
     totalEarned: WELCOME_BONUS,
     referralCode: code,
     referredBy: ref && ref !== code ? ref : null,
@@ -121,8 +122,8 @@ export function loadProfile(user: RobloxUser): Profile {
 
   if (fresh.referredBy) {
     creditReferrer(fresh.referredBy, { code, username: user.username, at: Date.now() });
-    fresh.seeds += 50; // the invited player gets a joining bonus too
-    fresh.totalEarned += 50;
+    fresh.credits += JOIN_BONUS;
+    fresh.totalEarned += JOIN_BONUS;
     window.localStorage.removeItem(PENDING_REF_KEY);
   }
 
@@ -156,15 +157,15 @@ export function referralsFor(code: string): Referral[] {
 }
 
 /**
- * Referral seeds are computed from the ledger rather than stored on the
+ * Referral credits are computed from the ledger rather than stored on the
  * profile, so invites that land while you're signed out still count.
  */
-export function referralSeeds(code: string): number {
+export function referralCredits(code: string): number {
   return referralsFor(code).length * REFERRAL_REWARD;
 }
 
-export function spendableSeeds(profile: Profile): number {
-  return profile.seeds + referralSeeds(profile.referralCode);
+export function spendableCredits(profile: Profile): number {
+  return profile.credits + referralCredits(profile.referralCode);
 }
 
 export function adReady(profile: Profile): { ok: boolean; waitMs: number; reason?: string } {
@@ -179,7 +180,7 @@ export function adReady(profile: Profile): { ok: boolean; waitMs: number; reason
 export function grantAdReward(profile: Profile): Profile {
   const next: Profile = {
     ...rollDay(profile),
-    seeds: profile.seeds + AD_REWARD,
+    credits: profile.credits + AD_REWARD,
     totalEarned: profile.totalEarned + AD_REWARD,
     adsWatched: profile.adsWatched + 1,
     adsToday: profile.adsToday + 1,
@@ -190,7 +191,7 @@ export function grantAdReward(profile: Profile): Profile {
 }
 
 export function redeem(profile: Profile, rewardName: string, cost: number): Profile | null {
-  if (spendableSeeds(profile) < cost) return null;
+  if (spendableCredits(profile) < cost) return null;
   const claim: Claim = {
     id: `${Date.now()}`,
     reward: rewardName,
@@ -199,7 +200,7 @@ export function redeem(profile: Profile, rewardName: string, cost: number): Prof
   };
   const next: Profile = {
     ...profile,
-    seeds: profile.seeds - cost,
+    credits: profile.credits - cost,
     claims: [claim].concat(profile.claims).slice(0, 25),
   };
   saveProfile(next);

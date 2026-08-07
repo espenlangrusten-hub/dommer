@@ -21,7 +21,7 @@ export default function ReferralCard({ code, referrals }: Props) {
   };
 
   const share = async () => {
-    const text = `Come farm with me in Grow a Garden 2 — use my code ${code} and we both get seeds:`;
+    const text = `Come farm with me in Grow a Garden 2 — use my code ${code} and we both get credits:`;
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Seed Circle', text, url: link });
@@ -37,7 +37,7 @@ export default function ReferralCard({ code, referrals }: Props) {
     <section className="card">
       <header className="card-head">
         <h2>Invite friends</h2>
-        <span className="pill">+{REFERRAL_REWARD} seeds each</span>
+        <span className="pill">+{REFERRAL_REWARD} credits each</span>
       </header>
 
       <p className="card-sub">
@@ -75,7 +75,7 @@ export default function ReferralCard({ code, referrals }: Props) {
               <li key={r.code}>
                 <span className="avatar-dot">{r.username.slice(0, 1).toUpperCase()}</span>
                 <span className="referral-name">{r.username}</span>
-                <span className="referral-seeds">+{REFERRAL_REWARD} 🌱</span>
+                <span className="referral-credits">+{REFERRAL_REWARD} credits</span>
               </li>
             ))}
           </ul>

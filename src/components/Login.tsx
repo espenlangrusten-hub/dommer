@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { isRobloxConfigured, startLogin, demoUser, RobloxUser } from '../lib/roblox';
-import { pendingRef, REFERRAL_REWARD, WELCOME_BONUS } from '../lib/store';
+import { AD_DAILY_LIMIT, AD_REWARD, pendingRef, REFERRAL_REWARD, WELCOME_BONUS } from '../lib/store';
 
 type Props = {
   onDemoLogin: (user: RobloxUser) => void;
@@ -42,7 +42,7 @@ export default function Login({ onDemoLogin, error, busy }: Props) {
             <span className="ref-banner-icon">🎉</span>
             <span>
               You were invited with code <b>{ref}</b> — sign in and you both get
-              seeds.
+              credits.
             </span>
           </div>
         )}
@@ -87,13 +87,13 @@ export default function Login({ onDemoLogin, error, busy }: Props) {
 
         <ul className="perks">
           <li>
-            <b>+{WELCOME_BONUS}</b> seeds just for joining
+            <b>+{WELCOME_BONUS}</b> credits just for joining
           </li>
           <li>
-            <b>+{REFERRAL_REWARD}</b> seeds per friend who signs in
+            <b>+{REFERRAL_REWARD}</b> credits per friend who signs in
           </li>
           <li>
-            <b>+25</b> seeds per ad, up to 20 a day
+            <b>+{AD_REWARD}</b> credit per ad, up to {AD_DAILY_LIMIT} a day
           </li>
         </ul>
 

@@ -1,5 +1,5 @@
-import React from 'react';
-import { REWARDS } from '../lib/rewards';
+import React, { useState } from 'react';
+import { REWARDS, Reward, SHOP_NAME, rewardImage } from '../lib/rewards';
 import { Claim } from '../lib/store';
 
 type Props = {
@@ -12,30 +12,22 @@ export default function RewardsShop({ balance, claims, onRedeem }: Props) {
   return (
     <section className="card">
       <header className="card-head">
-        <h2>Rewards</h2>
-        <span className="pill">{balance.toLocaleString()} 🌱 available</span>
+        <h2>{SHOP_NAME}</h2>
+        <span className="pill">{balance.toLocaleString()} credits</span>
       </header>
+      <p className="card-sub">
+        Spend your credits. Every redemption gives you a claim code.
+      </p>
 
       <div className="reward-grid">
-        {REWARDS.map(r => {
-          const affordable = balance >= r.cost;
-          return (
-            <div key={r.id} className={`reward tier-${r.tier}`}>
-              <span className="reward-icon">{r.icon}</span>
-              <div className="reward-body">
-                <h3>{r.name}</h3>
-                <p>{r.blurb}</p>
-              </div>
-              <button
-                className={affordable ? 'primary-btn small' : 'ghost-btn small'}
-                disabled={!affordable}
-                onClick={() => onRedeem(r.id)}
-              >
-                {affordable ? `Redeem ${r.cost} 🌱` : `${r.cost} 🌱`}
-              </button>
-            </div>
-          );
-        })}
+        {REWARDS.map(r => (
+          <RewardCard
+            key={r.id}
+            reward={r}
+            affordable={balance >= r.cost}
+            onRedeem={() => onRedeem(r.id)}
+          />
+        ))}
       </div>
 
       {claims.length > 0 && (
@@ -56,5 +48,44 @@ export default function RewardsShop({ balance, claims, onRedeem }: Props) {
         </div>
       )}
     </section>
+  );
+}
+
+function RewardCard({
+  reward,
+  affordable,
+  onRedeem,
+}: {
+  reward: Reward;
+  affordable: boolean;
+  onRedeem: () => void;
+}) {
+  // Artwork is optional — until public/rewards/<id>.png exists we show the
+  // emoji stand-in rather than a broken image.
+  const [artMissing, setArtMissing] = useState(false);
+
+  return (
+    <div className={`reward tier-${reward.tier}`}>
+      <div className="reward-art">
+        {artMissing ? (
+          <span className="reward-fallback">{reward.fallback}</span>
+        ) : (
+          <img
+            src={rewardImage(reward.id)}
+            alt={reward.name}
+            loading="lazy"
+            onError={() => setArtMissing(true)}
+          />
+        )}
+      </div>
+      <h3>{reward.name}</h3>
+      <button
+        className={affordable ? 'primary-btn small' : 'ghost-btn small'}
+        disabled={!affordable}
+        onClick={onRedeem}
+      >
+        {reward.cost} {reward.cost === 1 ? 'credit' : 'credits'}
+      </button>
+    </div>
   );
 }

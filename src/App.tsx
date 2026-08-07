@@ -17,10 +17,10 @@ import {
   loadProfile,
   loadSession,
   redeem,
-  referralSeeds,
+  referralCredits,
   referralsFor,
   saveSession,
-  spendableSeeds,
+  spendableCredits,
 } from './lib/store';
 
 export default function App() {
@@ -97,14 +97,14 @@ export default function App() {
   }
 
   const referrals = referralsFor(profile.referralCode);
-  const balance = spendableSeeds(profile);
+  const balance = spendableCredits(profile);
   const ad = adReady(profile);
   const cooldown = Math.max(0, Math.ceil((profile.lastAdAt + 60_000 - now) / 1000));
 
   const handleClaimAd = () => {
     setProfile(grantAdReward(profile));
     setAdOpen(false);
-    flash(`+${AD_REWARD} seeds added`);
+    flash(`+${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'} added`);
   };
 
   const handleRedeem = (rewardId: string) => {
@@ -112,7 +112,7 @@ export default function App() {
     if (!reward) return;
     const next = redeem(profile, reward.name, reward.cost);
     if (!next) {
-      flash('Not enough seeds yet.');
+      flash('Not enough credits yet.');
       return;
     }
     setProfile(next);
@@ -132,7 +132,7 @@ export default function App() {
         <div className="account">
           <div className="balance">
             <span className="balance-value">{balance.toLocaleString()}</span>
-            <span className="balance-label">seeds</span>
+            <span className="balance-label">credits</span>
           </div>
           {user.avatar ? (
             <img className="avatar" src={user.avatar} alt="" />
@@ -165,8 +165,8 @@ export default function App() {
             </span>
           </header>
           <p className="card-sub">
-            One short ad, {AD_REWARD} seeds. There's a one-minute cooldown
-            between them.
+            One short ad, {AD_REWARD} {AD_REWARD === 1 ? 'credit' : 'credits'}.
+            There's a one-minute cooldown between them.
           </p>
           <button
             className="watch-btn"
@@ -175,7 +175,7 @@ export default function App() {
           >
             <span className="watch-icon">▶</span>
             {ad.ok
-              ? `Watch an ad · +${AD_REWARD} 🌱`
+              ? `Watch an ad · +${AD_REWARD} ${AD_REWARD === 1 ? 'credit' : 'credits'}`
               : cooldown > 0 && profile.adsToday < AD_DAILY_LIMIT
               ? `Next ad in ${cooldown}s`
               : ad.reason}
@@ -191,8 +191,8 @@ export default function App() {
               <span>friends invited</span>
             </div>
             <div>
-              <b>{(profile.totalEarned + referralSeeds(profile.referralCode)).toLocaleString()}</b>
-              <span>seeds earned</span>
+              <b>{(profile.totalEarned + referralCredits(profile.referralCode)).toLocaleString()}</b>
+              <span>credits earned</span>
             </div>
           </div>
         </section>

@@ -45,14 +45,49 @@ client-side.
 
 ## How the economy works
 
+The currency is **credits**.
+
 | Action | Reward |
 | --- | --- |
-| Signing in the first time | 100 seeds |
-| Signing in through someone's invite link | 50 seeds to you, 250 to them |
-| Watching an ad | 25 seeds, 1 minute cooldown, 20 per day |
+| Signing in the first time | 2 credits |
+| Signing in through someone's invite link | 1 credit to you, 5 to them |
+| Watching an ad | 1 credit, 1 minute cooldown, 20 per day |
 
-Seeds are spent in the rewards shop, which mints a claim code the player
-redeems in-game. Costs and items live in `src/lib/rewards.ts`.
+Earn rates live at the top of `src/lib/store.ts`; the reward catalogue and its
+prices live in `src/lib/rewards.ts`. At the current rates a maxed-out day of
+ads is 20 credits, so the 75-credit Raccoon is about four days of watching, or
+15 invites.
+
+### Garden Valley catalogue
+
+| Reward | Cost |
+| --- | --- |
+| 1x Super Sprinkler | 2 |
+| 1x Super Watering Can | 3 |
+| 1x Dragon's Breath Seed | 5 |
+| 1x Unicorn | 10 |
+| 1x Golden Dragonfly | 10 |
+| 1x Star Fruit Seed | 15 |
+| 1x Raccoon | 75 |
+
+### Reward artwork
+
+Each reward looks for `public/rewards/<id>.png`, where `<id>` is the reward's
+`id` in `src/lib/rewards.ts`:
+
+```
+public/rewards/super-sprinkler.png
+public/rewards/super-watering-can.png
+public/rewards/dragons-breath.png
+public/rewards/unicorn.png
+public/rewards/golden-dragonfly.png
+public/rewards/star-fruit.png
+public/rewards/raccoon.png
+```
+
+Square images look best — they're cropped to a square tile. Any file that is
+missing falls back to an emoji stand-in, so the shop never shows a broken
+image.
 
 ## What is not real yet
 
