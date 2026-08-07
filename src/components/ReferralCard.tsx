@@ -24,7 +24,7 @@ export default function ReferralCard({ code, referrals }: Props) {
     const text = `Come farm with me in Grow a Garden 2 — use my code ${code} and we both get credits:`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Seed Circle', text, url: link });
+        await navigator.share({ title: 'Garden Rewards', text, url: link });
         return;
       } catch {
         /* user dismissed the share sheet */

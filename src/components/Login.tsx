@@ -27,7 +27,7 @@ export default function Login({ onDemoLogin, error, busy }: Props) {
         <div className="brand">
           <span className="brand-mark">🌱</span>
           <div>
-            <h1>Seed Circle</h1>
+            <h1>Garden Rewards</h1>
             <p className="brand-sub">Referrals &amp; rewards for Grow a Garden 2</p>
           </div>
         </div>

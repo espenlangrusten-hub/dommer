@@ -1,4 +1,4 @@
-# Seed Circle — referrals & rewards for Grow a Garden 2
+# Garden Rewards — referrals & rewards for Grow a Garden 2
 
 A fan site where players sign in with their Roblox account, invite friends,
 watch rewarded ads, and trade the seeds they earn for in-game loot.
@@ -88,6 +88,38 @@ public/rewards/raccoon.png
 Square images look best — they're cropped to a square tile. Any file that is
 missing falls back to an emoji stand-in, so the shop never shows a broken
 image; `golden-dragonfly.png` and `raccoon.png` are still stand-ins.
+
+## Ads
+
+There are two separate ad surfaces, and they are not the same product:
+
+**Display ads (sidebar).** A 300px rail on wide screens, and a responsive
+banner below the cards on narrow ones. Both are AdSense units driven by
+`REACT_APP_ADSENSE_CLIENT`, `REACT_APP_ADSENSE_SLOT_SIDEBAR` and
+`REACT_APP_ADSENSE_SLOT_INLINE` (see `.env.example`). Without a publisher ID
+they render as labelled placeholders, so the site is safe to deploy before the
+account exists. Requests are set to non-personalised.
+
+Before these can serve for real:
+
+- **ads.txt** — AdSense will ask for a `public/ads.txt` containing
+  `google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0` with your real
+  publisher ID. It is deliberately not committed: an ads.txt with no valid
+  records marks *every* seller unauthorised and can block monetisation
+  outright.
+- **A consent banner** — EEA/UK traffic needs a Google-certified CMP before
+  AdSense serves anything. Norway is in the EEA, so this is required, not
+  optional.
+- **Child-directed treatment** — the audience skews young; this is configured
+  on the AdSense account.
+
+**Rewarded ads (the watch-and-earn button).** Still the placeholder described
+below. AdSense does not offer a rewarded format for the open web, and its
+policies prohibit rewarding users for viewing ads — so the rewarded unit has to
+come from a network built for incentivised traffic (AdGate, Ayet, Torox,
+Adsterra, or Ad Manager rewarded for web games). Note that running incentivised
+traffic and AdSense units on the same page carries a real risk to the AdSense
+account.
 
 ## What is not real yet
 

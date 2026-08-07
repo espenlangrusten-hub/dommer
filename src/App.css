@@ -385,10 +385,85 @@ input:focus {
   border-bottom: 1px solid rgba(245, 196, 81, 0.25);
 }
 
+/* Cards on the left, ad rail on the right. */
+.content {
+  flex: 1;
+  width: min(1420px, 100%);
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ad-rail {
+  position: sticky;
+  top: 96px;
+  width: 300px;
+  flex: 0 0 300px;
+  padding: 26px 20px 0 0;
+}
+
+/* The rail only earns its place when there's room beside the cards. */
+@media (max-width: 1320px) {
+  .ad-rail {
+    display: none;
+  }
+}
+
+.ad-inline {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1321px) {
+  .ad-inline {
+    display: none;
+  }
+}
+
+.ad-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+}
+
+.ad-slot-sidebar {
+  min-height: 600px;
+}
+
+.ad-slot-inline {
+  min-height: 120px;
+}
+
+.ad-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.ad-slot-empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.ad-slot-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 220px;
+}
+
 .layout {
   flex: 1;
   width: min(1080px, 100%);
-  margin: 0 auto;
   padding: 26px 20px 40px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

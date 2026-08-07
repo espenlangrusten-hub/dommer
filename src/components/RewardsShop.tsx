@@ -33,7 +33,7 @@ export default function RewardsShop({ balance, claims, onRedeem }: Props) {
       {claims.length > 0 && (
         <div className="claims">
           <h3>Your claim codes</h3>
-          <p className="card-sub">Enter these in-game at the Seed Circle stand.</p>
+          <p className="card-sub">Enter these in-game at the Garden Rewards stand.</p>
           <ul>
             {claims.map(c => (
               <li key={c.id}>

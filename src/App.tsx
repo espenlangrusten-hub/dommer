@@ -1,12 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import './App.css';
-import Login from './components/Login';
-import AdModal from './components/AdModal';
-import ReferralCard from './components/ReferralCard';
-import RewardsShop from './components/RewardsShop';
-import Leaderboard from './components/Leaderboard';
-import { REWARDS } from './lib/rewards';
-import { callbackError, completeLogin, RobloxUser } from './lib/roblox';
+import React, { useCallback, useEffect, useState } from "react";
+import "./App.css";
+import Login from "./components/Login";
+import AdModal from "./components/AdModal";
+import ReferralCard from "./components/ReferralCard";
+import RewardsShop from "./components/RewardsShop";
+import Leaderboard from "./components/Leaderboard";
+import AdSlot from "./components/AdSlot";
+import { REWARDS } from "./lib/rewards";
+import { SLOT_INLINE, SLOT_SIDEBAR } from "./lib/adsense";
+import { callbackError, completeLogin, RobloxUser } from "./lib/roblox";
 import {
   AD_DAILY_LIMIT,
   AD_REWARD,
@@ -22,7 +24,7 @@ import {
   referralsFor,
   saveSession,
   spendableCredits,
-} from './lib/store';
+} from "./lib/store";
 
 export default function App() {
   const [user, setUser] = useState<RobloxUser | null>(null);
@@ -51,7 +53,7 @@ export default function App() {
 
     let cancelled = false;
     completeLogin()
-      .then(u => {
+      .then((u) => {
         if (cancelled) return;
         if (u) {
           signIn(u);
@@ -60,8 +62,9 @@ export default function App() {
           if (existing) signIn(existing);
         }
       })
-      .catch(e => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Login failed.');
+      .catch((e) => {
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Login failed.");
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
@@ -100,7 +103,10 @@ export default function App() {
   const referrals = referralsFor(profile.referralCode);
   const balance = spendableCredits(profile);
   const ad = adReady(profile);
-  const cooldown = Math.max(0, Math.ceil((profile.lastAdAt + 60_000 - now) / 1000));
+  const cooldown = Math.max(
+    0,
+    Math.ceil((profile.lastAdAt + 60_000 - now) / 1000),
+  );
 
   const handleClaimAd = () => {
     setProfile(grantAdReward(profile));
@@ -109,11 +115,11 @@ export default function App() {
   };
 
   const handleRedeem = (rewardId: string) => {
-    const reward = REWARDS.find(r => r.id === rewardId);
+    const reward = REWARDS.find((r) => r.id === rewardId);
     if (!reward) return;
     const next = redeem(profile, reward.name, reward.cost);
     if (!next) {
-      flash('Not enough credits yet.');
+      flash("Not enough credits yet.");
       return;
     }
     setProfile(next);
@@ -126,7 +132,7 @@ export default function App() {
         <div className="brand small">
           <span className="brand-mark">🌱</span>
           <div>
-            <h1>Seed Circle</h1>
+            <h1>Garden Rewards</h1>
             <p className="brand-sub">Grow a Garden 2</p>
           </div>
         </div>
@@ -157,58 +163,78 @@ export default function App() {
         </div>
       )}
 
-      <main className="layout">
-        <section className="card hero-card">
-          <header className="card-head">
-            <h2>Watch &amp; earn</h2>
-            <span className="pill">
-              {profile.adsToday}/{AD_DAILY_LIMIT} today
-            </span>
-          </header>
-          <p className="card-sub">
-            One short ad, {creditLabel(AD_REWARD)}. There's a one-minute
-            cooldown between them.
-          </p>
-          <button
-            className="watch-btn"
-            disabled={!ad.ok}
-            onClick={() => setAdOpen(true)}
-          >
-            <span className="watch-icon">▶</span>
-            {ad.ok
-              ? `Watch an ad · +${creditLabel(AD_REWARD)}`
-              : cooldown > 0 && profile.adsToday < AD_DAILY_LIMIT
-              ? `Next ad in ${cooldown}s`
-              : ad.reason}
-          </button>
+      <div className="content">
+        <main className="layout">
+          <section className="card hero-card">
+            <header className="card-head">
+              <h2>Watch &amp; earn</h2>
+              <span className="pill">
+                {profile.adsToday}/{AD_DAILY_LIMIT} today
+              </span>
+            </header>
+            <p className="card-sub">
+              One short ad, {creditLabel(AD_REWARD)}. There's a one-minute
+              cooldown between them.
+            </p>
+            <button
+              className="watch-btn"
+              disabled={!ad.ok}
+              onClick={() => setAdOpen(true)}
+            >
+              <span className="watch-icon">▶</span>
+              {ad.ok
+                ? `Watch an ad · +${creditLabel(AD_REWARD)}`
+                : cooldown > 0 && profile.adsToday < AD_DAILY_LIMIT
+                  ? `Next ad in ${cooldown}s`
+                  : ad.reason}
+            </button>
 
-          <div className="stats">
-            <div>
-              <b>{profile.adsWatched}</b>
-              <span>ads watched</span>
+            <div className="stats">
+              <div>
+                <b>{profile.adsWatched}</b>
+                <span>ads watched</span>
+              </div>
+              <div>
+                <b>{referrals.length}</b>
+                <span>friends invited</span>
+              </div>
+              <div>
+                <b>
+                  {(
+                    profile.totalEarned + referralCredits(profile.referralCode)
+                  ).toLocaleString()}
+                </b>
+                <span>credits earned</span>
+              </div>
             </div>
-            <div>
-              <b>{referrals.length}</b>
-              <span>friends invited</span>
-            </div>
-            <div>
-              <b>{(profile.totalEarned + referralCredits(profile.referralCode)).toLocaleString()}</b>
-              <span>credits earned</span>
-            </div>
+          </section>
+
+          <ReferralCard code={profile.referralCode} referrals={referrals} />
+          <RewardsShop
+            balance={balance}
+            claims={profile.claims}
+            onRedeem={handleRedeem}
+          />
+          <Leaderboard username={user.username} referrals={referrals.length} />
+
+          <div className="ad-inline">
+            <AdSlot slot={SLOT_INLINE} variant="inline" />
           </div>
-        </section>
+        </main>
 
-        <ReferralCard code={profile.referralCode} referrals={referrals} />
-        <RewardsShop balance={balance} claims={profile.claims} onRedeem={handleRedeem} />
-        <Leaderboard username={user.username} referrals={referrals.length} />
-      </main>
+        <aside className="ad-rail">
+          <AdSlot slot={SLOT_SIDEBAR} variant="sidebar" />
+        </aside>
+      </div>
 
       <footer className="footer">
         Fan-made. Not affiliated with or endorsed by Roblox Corporation or the
         Grow a Garden developers.
       </footer>
 
-      {adOpen && <AdModal onClaim={handleClaimAd} onClose={() => setAdOpen(false)} />}
+      {adOpen && (
+        <AdModal onClaim={handleClaimAd} onClose={() => setAdOpen(false)} />
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
