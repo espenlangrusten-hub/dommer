@@ -1,3 +1,13 @@
+# dommer
+
+This repository holds two things:
+
+- a Create React App project in `src/` (the referee/club login app),
+- a Roblox card roll system in `roblox/`, written in Luau. See
+  [`roblox/README.md`](roblox/README.md) for install and tuning.
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
