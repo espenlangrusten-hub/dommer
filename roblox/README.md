@@ -12,8 +12,11 @@ showcase, built to match the two reference clips.
   rarity, description, owned count, and View / Equip buttons.
 - **View** opens the showcase: the item floats in front of the camera under a
   burst of sparks with its details beside it, and any click dismisses it.
-- The **hotbar** runs along the bottom: six slots, three open from level 1 and
-  three padlocked behind levels 25, 50 and 100, with the XP bar underneath.
+- The **hotbar** runs along the bottom: six slots you can equip cards into,
+  selected with the number keys.
+
+While a hand of cards or the showcase is on screen the character is frozen, so
+you cannot walk off and leave them floating behind you.
 
 ## Install
 
@@ -40,17 +43,16 @@ Then connect from the Rojo plugin in Studio. The project maps into
 | `ReplicatedStorage/CardSystem/Rarities.luau` | both | tiers, weights, colours |
 | `ReplicatedStorage/CardSystem/Categories.luau` | both | the inventory tabs |
 | `ReplicatedStorage/CardSystem/Cards.luau` | both | the card catalogue |
-| `ReplicatedStorage/CardSystem/Levels.luau` | both | XP curve and level maths |
 | `ReplicatedStorage/CardSystem/RollLogic.luau` | both | weighted pick + pity |
 | `ReplicatedStorage/CardSystem/Remotes.luau` | both | names the network surface |
 | `ServerScriptService/CardSystem/init.server.luau` | server | authority, cooldown, awards |
-| `ServerScriptService/CardSystem/Inventory.luau` | server | profile, XP, hotbar, saving |
+| `ServerScriptService/CardSystem/Inventory.luau` | server | profile, hotbar, saving |
 | `StarterPlayerScripts/CardClient/init.client.luau` | client | wiring, input, render loop |
 | `StarterPlayerScripts/CardClient/Profile.luau` | client | the client's copy of the profile |
 | `StarterPlayerScripts/CardClient/CardVisual.luau` | client | one 3D card |
 | `StarterPlayerScripts/CardClient/RollUI.luau` | client | roll button, odds, notices |
 | `StarterPlayerScripts/CardClient/InventoryUI.luau` | client | the inventory panel |
-| `StarterPlayerScripts/CardClient/Hotbar.luau` | client | hotbar and level bar |
+| `StarterPlayerScripts/CardClient/Hotbar.luau` | client | the hotbar |
 | `StarterPlayerScripts/CardClient/Showcase.luau` | client | the item showcase |
 
 ## How it hangs together
@@ -65,14 +67,14 @@ The server is the only thing that decides anything:
    Part per card, and animates entrance, flip, cursor tilt and hover from a
    single `RenderStepped` pass.
 4. Click a card and the client sends `SelectCard(rollId, slot)`. The server
-   validates the id and the slot, grants the card and its XP, then pushes a
+   validates the id and the slot, grants the card, then pushes a
    `ProfileSync` with the whole profile.
 5. Every panel reads from `Profile`, the client's copy of that snapshot, so the
    hotbar, the inventory and the showcase can never disagree.
 
 Equipping works the same way: the client asks, the server checks that the card
-is owned and that the slot is unlocked for the player's level, and either
-syncs the new profile or sends back a `Notice` explaining the refusal.
+is owned and the slot exists, and either syncs the new profile or sends back a
+`Notice` explaining the refusal.
 
 ## Controls
 
@@ -85,8 +87,15 @@ syncs the new profile or sends back a `Notice` explaining the refusal.
 | `1` - `6` | select a hotbar slot |
 | Click anywhere | dismiss the showcase |
 
+There is no level or XP system. If you want gated hotbar slots back, add the
+condition to `Inventory.equip` on the server and draw the locked state in
+`Hotbar.refresh`.
+
 The stock Roblox backpack sits exactly where the hotbar goes, so it is hidden
 on join. Set `Config.HideDefaultBackpack = false` to keep it.
+
+Movement is locked while cards or the showcase are up. Set
+`Config.LockMovementDuringCards = false` to allow walking during a reveal.
 
 ## Tuning
 
@@ -97,10 +106,11 @@ Everything lives in `Config.luau`:
   one card in the hand is upgraded. Set `PityRolls = 0` to switch it off.
 - `CardSize`, `CardSpacing`, `CameraDistance` - how the hand is laid out.
 - `MaxTilt`, `TiltSmoothing`, `HoverPop`, `HoverScale` - the 3D lean.
-- `Layout` - where the hotbar, level bar and roll button sit.
-- `Hotbar.LevelGates` - the level each slot unlocks at.
+- `Layout` - where the hotbar and roll button sit.
+- `Hotbar.Slots` - how many hotbar slots there are.
 - `Inventory.Columns`, `SlotSize` - the grid.
 - `Keys` - the keybinds.
+- `LockMovementDuringCards` - freeze the character during a reveal.
 - `Sounds` - drop in `rbxassetid://` strings; empty strings stay silent.
 
 Colours and the font are in `Theme.luau`. The reference UI uses a halftone dot
@@ -143,26 +153,10 @@ recomputes itself from the weights, so adding a tier needs no other edit.
 Weights total 1856. With three cards per roll, 17.6% of hands contain at least
 one Epic or better.
 
-## Levelling
-
-Keeping a card pays 5 XP at Common up to 30 at Mythic, which averages 9.3 XP a
-roll across the odds above. The curve in `Levels.luau` is quadratic:
-
-| Level | Total XP | Rolls at the average |
-| --- | --- | --- |
-| 10 | 614 | ~66 |
-| 25 | 5,705 | ~610 |
-| 50 | 35,290 | ~3,800 |
-| 100 | 241,085 | ~25,900 |
-
-Level 100 is deliberately an endgame number, matching the reference UI's third
-locked slot. If that is too steep for your game, lower the gates in
-`Config.Hotbar.LevelGates` or flatten the curve in `Levels.xpForNext`.
-
 ## Saving
 
-`Inventory.luau` writes to the `CardInventory_v2` DataStore: owned counts, XP,
-the pity counter and the equipped hotbar. Every call is wrapped in `pcall`; if
+`Inventory.luau` writes to the `CardInventory_v2` DataStore: owned counts, the
+pity counter and the equipped hotbar. Every call is wrapped in `pcall`; if
 DataStores are unavailable (an unpublished place, or Studio without API access
 enabled) it warns once and keeps profiles in memory for the session. Set
 `SAVE_ENABLED = false` at the top of the module to skip DataStores entirely.
@@ -182,8 +176,8 @@ python3 roblox/tests/run.py path/to/luau
 
 It rolls 300,000 hands and asserts the observed rarity frequencies match the
 configured weights, that the pity counter caps dry streaks, that every card is
-reachable, that no tab is empty, and that the XP curve never stalls or reports
-the wrong level at a boundary. Re-run it after changing any weight or curve.
+reachable, and that no tab would render empty. Re-run it after changing any
+weight.
 
 The whole tree also type-checks against the real Roblox API with
 [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp):

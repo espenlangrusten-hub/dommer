@@ -1,9 +1,9 @@
 --!strict
 --[[
 	Inventory
-	The player's saved profile: what they own, their XP, and what sits on the
-	hotbar. Mirrors the headline numbers into leaderstats and hands the client
-	a snapshot to render.
+	The player's saved profile: what they own and what sits on the hotbar.
+	Mirrors the headline numbers into leaderstats and hands the client a
+	snapshot to render.
 
 	Persistence is opt-in and best effort: every DataStore call is wrapped in
 	pcall, and a failure degrades to an in-memory session profile rather than
@@ -19,7 +19,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
 local Config = require(CardSystem:WaitForChild("Config"))
-local Levels = require(CardSystem:WaitForChild("Levels"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
 
 local SAVE_ENABLED = true
@@ -29,7 +28,6 @@ local LOAD_RETRIES = 3
 export type Record = {
 	Counts: { [string]: number },
 	Equipped: { [string]: string }, -- slot index (as a string key) -> card id
-	Xp: number,
 	Pity: number,
 	Rolls: number,
 }
@@ -41,8 +39,6 @@ export type Record = {
 export type Snapshot = {
 	Counts: { [string]: number },
 	Equipped: { string | boolean },
-	Xp: number,
-	Level: number,
 	Rolls: number,
 }
 
@@ -64,7 +60,7 @@ if SAVE_ENABLED then
 end
 
 local function emptyRecord(): Record
-	return { Counts = {}, Equipped = {}, Xp = 0, Pity = 0, Rolls = 0 }
+	return { Counts = {}, Equipped = {}, Pity = 0, Rolls = 0 }
 end
 
 local function sanitise(raw: any): Record
@@ -99,7 +95,7 @@ local function sanitise(raw: any): Record
 		end
 	end
 
-	for _, key in { "Xp", "Pity", "Rolls" } do
+	for _, key in { "Pity", "Rolls" } do
 		if typeof(raw[key]) == "number" then
 			(record :: any)[key] = math.max(0, math.floor(raw[key]))
 		end
@@ -144,10 +140,6 @@ local function refreshStats(player: Player)
 	if cardsStat then
 		cardsStat.Value = totalCards(record)
 	end
-	local levelStat = stats:FindFirstChild("Level") :: IntValue?
-	if levelStat then
-		levelStat.Value = Levels.progress(record.Xp).Level
-	end
 	local bestStat = stats:FindFirstChild("Best") :: StringValue?
 	if bestStat then
 		bestStat.Value = bestRarityName(record)
@@ -174,8 +166,6 @@ function Inventory.snapshot(player: Player): Snapshot?
 	return {
 		Counts = counts,
 		Equipped = equipped,
-		Xp = record.Xp,
-		Level = Levels.progress(record.Xp).Level,
 		Rolls = record.Rolls,
 	}
 end
@@ -211,10 +201,6 @@ function Inventory.load(player: Player)
 
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
-
-	local levelStat = Instance.new("IntValue")
-	levelStat.Name = "Level"
-	levelStat.Parent = stats
 
 	local cardsStat = Instance.new("IntValue")
 	cardsStat.Name = "Cards"
@@ -269,27 +255,16 @@ function Inventory.owns(player: Player, cardId: string): boolean
 	return record ~= nil and (record.Counts[cardId] or 0) > 0
 end
 
-function Inventory.level(player: Player): number
+-- Grants a card. Returns false when it could not be granted.
+function Inventory.award(player: Player, cardId: string): boolean
 	local record = records[player]
-	return if record then Levels.progress(record.Xp).Level else 1
-end
-
---[[
-	Grants a card and the XP that comes with it.
-	Returns the xp awarded, or nil when the card could not be granted.
-]]
-function Inventory.award(player: Player, cardId: string): number?
-	local record = records[player]
-	local card = Cards.get(cardId)
-	if not record or not card then
-		return nil
+	if not record or not Cards.get(cardId) then
+		return false
 	end
 
 	record.Counts[cardId] = (record.Counts[cardId] or 0) + 1
-	local xp = Levels.xpForRarity(card.Rarity)
-	record.Xp += xp
 	refreshStats(player)
-	return xp
+	return true
 end
 
 --[[
@@ -303,11 +278,6 @@ function Inventory.equip(player: Player, slot: number, cardId: string?): (boolea
 	end
 	if slot ~= math.floor(slot) or slot < 1 or slot > Config.Hotbar.Slots then
 		return false, "No such slot"
-	end
-
-	local gate = Config.Hotbar.LevelGates[slot] or 1
-	if Levels.progress(record.Xp).Level < gate then
-		return false, `Slot unlocks at level {gate}`
 	end
 
 	if cardId == nil then
@@ -332,16 +302,14 @@ function Inventory.equip(player: Player, slot: number, cardId: string?): (boolea
 	return true, nil
 end
 
--- The lowest slot the player can use that has nothing on it.
+-- The lowest slot with nothing on it.
 function Inventory.firstFreeSlot(player: Player): number?
 	local record = records[player]
 	if not record then
 		return nil
 	end
-	local level = Levels.progress(record.Xp).Level
 	for slot = 1, Config.Hotbar.Slots do
-		local gate = Config.Hotbar.LevelGates[slot] or 1
-		if level >= gate and record.Equipped[tostring(slot)] == nil then
+		if record.Equipped[tostring(slot)] == nil then
 			return slot
 		end
 	end

@@ -9,13 +9,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Config = require(CardSystem:WaitForChild("Config"))
-local Levels = require(CardSystem:WaitForChild("Levels"))
 
 export type Snapshot = {
 	Counts: { [string]: number },
 	Equipped: { string | boolean },
-	Xp: number,
-	Level: number,
 	Rolls: number,
 }
 
@@ -24,8 +21,6 @@ local Profile = {}
 local current: Snapshot = {
 	Counts = {},
 	Equipped = {},
-	Xp = 0,
-	Level = 1,
 	Rolls = 0,
 }
 
@@ -74,15 +69,6 @@ function Profile.slotOf(cardId: string): number?
 		end
 	end
 	return nil
-end
-
-function Profile.isSlotUnlocked(slot: number): boolean
-	local gate = Config.Hotbar.LevelGates[slot] or 1
-	return current.Level >= gate
-end
-
-function Profile.progress(): Levels.Progress
-	return Levels.progress(current.Xp)
 end
 
 -- Owned cards, sorted rarest first and then by name, for the inventory grid.

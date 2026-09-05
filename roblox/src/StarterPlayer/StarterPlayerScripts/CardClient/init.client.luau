@@ -1,8 +1,8 @@
 --!strict
 --[[
 	CardSystem client
-	Wires the pieces together: the roll button and the 3D hand, the hotbar and
-	level bar, the inventory panel, and the item showcase.
+	Wires the pieces together: the roll button and the 3D hand, the hotbar,
+	the inventory panel, and the item showcase.
 
 	The client never decides what is rolled or what it owns - it renders the
 	profile the server sends and asks for changes.
@@ -75,6 +75,88 @@ raycastParams.FilterType = Enum.RaycastFilterType.Include
 raycastParams.IgnoreWater = true
 raycastParams.FilterDescendantsInstances = {}
 
+--[[
+	Movement lock
+	The character is frozen while a hand of cards or the showcase is up, so
+	you cannot walk away and leave them floating behind you.
+
+	PlayerModule's control object is the supported way to do this and covers
+	keyboard, touch and gamepad in one call. When a place has replaced the
+	PlayerModule we fall back to zeroing the humanoid, remembering the old
+	values so the game's own speed survives the round trip.
+]]
+local movementLocks: { [string]: boolean? } = {}
+local cachedControls: any = nil
+local savedWalkSpeed: number? = nil
+local savedJumpPower: number? = nil
+
+local function getControls(): any
+	if cachedControls then
+		return cachedControls
+	end
+	local scripts = player:FindFirstChild("PlayerScripts")
+	local playerModule = scripts and scripts:FindFirstChild("PlayerModule")
+	if not playerModule then
+		return nil
+	end
+	-- Indirect so the analyser does not try to resolve a runtime path.
+	local requireModule: (Instance) -> any = require :: any
+	local ok, result = pcall(function()
+		return requireModule(playerModule):GetControls()
+	end)
+	if ok then
+		cachedControls = result
+	end
+	return cachedControls
+end
+
+local function applyMovementLock()
+	local locked = next(movementLocks) ~= nil
+
+	local controls = getControls()
+	if controls then
+		local ok = pcall(function()
+			if locked then
+				controls:Disable()
+			else
+				controls:Enable()
+			end
+		end)
+		if ok then
+			return
+		end
+		cachedControls = nil
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	if locked then
+		if savedWalkSpeed == nil then
+			savedWalkSpeed = humanoid.WalkSpeed
+			savedJumpPower = humanoid.JumpPower
+		end
+		humanoid.WalkSpeed = 0
+		humanoid.JumpPower = 0
+	elseif savedWalkSpeed then
+		humanoid.WalkSpeed = savedWalkSpeed
+		humanoid.JumpPower = savedJumpPower or humanoid.JumpPower
+		savedWalkSpeed = nil
+		savedJumpPower = nil
+	end
+end
+
+local function setMovementLock(reason: string, locked: boolean)
+	if not Config.LockMovementDuringCards then
+		return
+	end
+	movementLocks[reason] = if locked then true else nil
+	applyMovementLock()
+end
+
 -- Helpers ------------------------------------------------------------------
 local function playSound(id: string)
 	if id == "" then
@@ -91,6 +173,7 @@ end
 local function setState(newState: State)
 	state = newState
 	stateToken += 1
+	setMovementLock("cards", newState == "choosing" or newState == "resolving")
 end
 
 local function currentTokenGuard(): () -> boolean
@@ -254,7 +337,7 @@ Remotes.RollRejected.OnClientEvent:Connect(function(reason: string, retryAfter: 
 	end
 end)
 
-Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?, xp: number?)
+Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?)
 	if not ok then
 		-- Server refused the pick: hand the choice back rather than freezing.
 		if state == "resolving" then
@@ -273,7 +356,7 @@ Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: stri
 
 	if card then
 		local rarity = Rarities.get(card.Rarity)
-		ui:showBanner(card.Name, rarity, xp or 0)
+		ui:showBanner(card.Name, rarity)
 		playSound(if rarity.Sparkle then Config.Sounds.Rare else Config.Sounds.Select)
 	end
 
@@ -296,15 +379,16 @@ end
 
 inventory.OnView = function(cardId: string)
 	inventory:close()
+	setMovementLock("showcase", true)
 	showcase:show(cardId)
 end
 
 inventory.OnEquip = function(cardId: string)
 	-- Fill the selected slot when it is free, otherwise the first open one.
 	local slot = hotbar.Selected
-	if not Profile.isSlotUnlocked(slot) or Profile.equippedAt(slot) then
+	if Profile.equippedAt(slot) then
 		for index = 1, Config.Hotbar.Slots do
-			if Profile.isSlotUnlocked(index) and not Profile.equippedAt(index) then
+			if not Profile.equippedAt(index) then
 				slot = index
 				break
 			end
@@ -320,18 +404,15 @@ inventory.OnUnequip = function(cardId: string)
 	end
 end
 
-hotbar.OnSlotActivated = function(slot: number, cardId: string?, unlocked: boolean)
-	if not unlocked then
-		local gate = Config.Hotbar.LevelGates[slot] or 1
-		ui:showNotice(`Slot {slot} unlocks at level {gate}`, true)
-		return
-	end
+hotbar.OnSlotActivated = function(_slot: number, cardId: string?)
 	if cardId then
+		setMovementLock("showcase", true)
 		showcase:show(cardId)
 	end
 end
 
 showcase.OnClosed = function()
+	setMovementLock("showcase", false)
 	playSound(Config.Sounds.Close)
 end
 
@@ -474,6 +555,11 @@ end
 
 player.CharacterAdded:Connect(function(character: Model)
 	showcase:hide()
+	-- A new humanoid starts at full speed, so re-assert whatever lock holds.
+	savedWalkSpeed = nil
+	savedJumpPower = nil
+	applyMovementLock()
+
 	if state ~= "choosing" then
 		return
 	end

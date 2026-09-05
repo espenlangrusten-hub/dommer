@@ -4,8 +4,12 @@
 	The ROLL button and its odds strip, plus the inventory button on the left
 	edge and the one-line notice toast.
 
-	The button sits above the hotbar rather than on the bottom edge, so the
-	two never overlap.
+	The button sits just above the hotbar rather than on the bottom edge, so
+	the two never overlap.
+
+	Each anchored group carries its own UIScale. A UIScale scales its object
+	about that object's AnchorPoint, so one on a full-screen frame would drag
+	everything bottom-anchored up toward the top-left as the factor drops.
 ]]
 
 local Players = game:GetService("Players")
@@ -24,6 +28,8 @@ local IDLE_COLOR = Color3.fromRGB(96, 132, 255)
 local BUSY_COLOR = Color3.fromRGB(58, 62, 78)
 local BUTTON_WIDTH = 236
 local BUTTON_HEIGHT = 62
+local ODDS_GAP = 8
+local ODDS_HEIGHT = 18
 
 local RollUI = {}
 RollUI.__index = RollUI
@@ -31,7 +37,7 @@ RollUI.__index = RollUI
 export type RollUI = typeof(setmetatable(
 	{} :: {
 		Gui: ScreenGui,
-		Scale: UIScale,
+		Scales: { UIScale },
 		Button: TextButton,
 		ButtonLabel: TextLabel,
 		Status: TextLabel,
@@ -52,8 +58,8 @@ local function buildOdds(parent: Instance): Frame
 		Name = "Odds",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + 8),
-		Size = UDim2.new(0, 560, 0, 18),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + ODDS_GAP),
+		Size = UDim2.new(0, 560, 0, ODDS_HEIGHT),
 		Parent = parent,
 	}, {
 		make("UIListLayout", {
@@ -171,23 +177,15 @@ function RollUI.new(): RollUI
 		DisplayOrder = 10,
 	}) :: ScreenGui
 
-	local scaleHost = make("Frame", {
-		Name = "ScaleHost",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		Parent = gui,
-	})
-
-	local scale = make("UIScale", { Scale = 1, Parent = scaleHost }) :: UIScale
-
-	-- Roll button sits above the hotbar, not on the bottom edge.
+	-- Roll button sits just above the hotbar, not on the bottom edge. The dock
+	-- is sized to its contents so its bottom edge is the odds strip.
 	local dock = make("Frame", {
 		Name = "Dock",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -L.RollBottom),
-		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + 52),
-		Parent = scaleHost,
+		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + ODDS_GAP + ODDS_HEIGHT),
+		Parent = gui,
 	})
 
 	local status = Theme.label({
@@ -228,7 +226,7 @@ function RollUI.new(): RollUI
 	}) :: TextButton
 
 	buildOdds(dock)
-	local sideButton = buildSideButton(scaleHost)
+	local sideButton = buildSideButton(gui)
 
 	local bannerLabel = Theme.label({
 		Name = "Label",
@@ -244,7 +242,7 @@ function RollUI.new(): RollUI
 		Position = UDim2.new(0.5, 0, 0, 74),
 		Size = UDim2.fromOffset(400, 54),
 		Visible = false,
-		Parent = scaleHost,
+		Parent = gui,
 	}, Color3.new(1, 1, 1), { bannerLabel })
 
 	local notice = Theme.label({
@@ -256,14 +254,20 @@ function RollUI.new(): RollUI
 		TextSize = 18,
 		Text = "",
 		Visible = false,
-		Parent = scaleHost,
+		Parent = gui,
 	}, 3)
+
+	-- One scale per anchored group, so each pivots on its own anchor.
+	local scales: { UIScale } = {}
+	for _, host in { dock, sideButton, banner, notice } do
+		table.insert(scales, make("UIScale", { Scale = 1, Parent = host }) :: UIScale)
+	end
 
 	gui.Parent = playerGui
 
 	local self = setmetatable({
 		Gui = gui,
-		Scale = scale,
+		Scales = scales,
 		Button = button,
 		ButtonLabel = buttonLabel,
 		Status = status,
@@ -318,7 +322,9 @@ function RollUI.new(): RollUI
 end
 
 function RollUI.setScale(self: RollUI, factor: number)
-	self.Scale.Scale = factor
+	for _, scale in self.Scales do
+		scale.Scale = factor
+	end
 end
 
 function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
@@ -362,10 +368,10 @@ function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> bool
 	end)
 end
 
-function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity, xp: number)
+function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity)
 	local banner = self.Banner
 	local edge = banner:FindFirstChildOfClass("UIStroke")
-	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}  +{xp} XP`
+	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}`
 	self.BannerLabel.TextColor3 = rarity.TextColor
 	if edge then
 		edge.Color = rarity.Color

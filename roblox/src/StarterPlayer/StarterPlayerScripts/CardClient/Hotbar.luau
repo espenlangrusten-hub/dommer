@@ -1,9 +1,7 @@
 --!strict
 --[[
 	Hotbar
-	Six slots along the bottom of the screen with the level bar underneath,
-	laid out like the reference UI: the first three open from level 1, the
-	last three gated behind levels and drawn with a padlock.
+	Six slots along the bottom of the screen, laid out like the reference UI.
 
 	Number keys 1-6 select a slot. Selection is cosmetic here - it is the hook
 	you use when you give equipped cards an in-game effect.
@@ -32,8 +30,6 @@ type SlotViews = {
 	KeyFrame: Frame,
 	NameLabel: TextLabel,
 	CountLabel: TextLabel,
-	Lock: Frame,
-	LockLabel: TextLabel,
 	Content: Frame,
 }
 
@@ -45,10 +41,8 @@ export type Hotbar = typeof(setmetatable(
 		Gui: ScreenGui,
 		Scale: UIScale,
 		Slots: { SlotViews },
-		XpFill: Frame,
-		XpLabel: TextLabel,
 		Selected: number,
-		OnSlotActivated: ((slot: number, cardId: string?, unlocked: boolean) -> ())?,
+		OnSlotActivated: ((slot: number, cardId: string?) -> ())?,
 	},
 	Hotbar
 ))
@@ -126,24 +120,6 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		Parent = keyFrame,
 	}, 2)
 
-	local lock = Theme.lockIcon({
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.44),
-		Size = UDim2.fromScale(0.46, 0.46),
-		Visible = false,
-		Parent = surface,
-	})
-
-	local lockLabel = Theme.label({
-		Name = "LockLabel",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 0.97),
-		Size = UDim2.fromScale(1, 0.26),
-		Text = "",
-		Visible = false,
-		Parent = surface,
-	}, 3)
-
 	return {
 		Button = button,
 		Surface = surface,
@@ -152,8 +128,6 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		KeyFrame = keyFrame,
 		NameLabel = nameLabel,
 		CountLabel = countLabel,
-		Lock = lock,
-		LockLabel = lockLabel,
 		Content = content,
 	}
 end
@@ -169,12 +143,14 @@ function Hotbar.new(): Hotbar
 		DisplayOrder = 8,
 	}) :: ScreenGui
 
+	local rowWidth = Config.Hotbar.Slots * L.HotbarSlot + (Config.Hotbar.Slots - 1) * L.HotbarGap
+
 	local root = make("Frame", {
 		Name = "Root",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, 0),
-		Size = UDim2.new(0, L.XpBarWidth, 0, L.HotbarBottom + L.HotbarSlot + 20),
+		Size = UDim2.fromOffset(rowWidth, L.HotbarBottom + L.HotbarSlot),
 		Parent = gui,
 	})
 
@@ -186,10 +162,7 @@ function Hotbar.new(): Hotbar
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -L.HotbarBottom),
-		Size = UDim2.fromOffset(
-			Config.Hotbar.Slots * L.HotbarSlot + (Config.Hotbar.Slots - 1) * L.HotbarGap,
-			L.HotbarSlot
-		),
+		Size = UDim2.fromOffset(rowWidth, L.HotbarSlot),
 		Parent = root,
 	}, {
 		make("UIListLayout", {
@@ -206,46 +179,12 @@ function Hotbar.new(): Hotbar
 		slots[index] = buildSlot(index, row)
 	end
 
-	-- Level bar.
-	local track = Theme.panel({
-		Name = "XpBar",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -L.XpBarBottom),
-		Size = UDim2.fromOffset(L.XpBarWidth, L.XpBarHeight),
-		BackgroundColor3 = Theme.Colors.XpTrack,
-		Parent = root,
-	}, Color3.fromRGB(0, 0, 0))
-	local trackStroke = track:FindFirstChildOfClass("UIStroke") :: UIStroke
-	trackStroke.Thickness = 2.5
-
-	local fill = make("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(0, 1),
-		BackgroundColor3 = Theme.Colors.XpFillA,
-		BorderSizePixel = 0,
-		Parent = track,
-	}, {
-		Theme.corner(10),
-		Theme.gradient(Theme.Colors.XpFillA, Theme.Colors.XpFillB, 0),
-	}) :: Frame
-
-	local xpLabel = Theme.label({
-		Name = "XpLabel",
-		Size = UDim2.fromScale(1, 1),
-		Text = "Level: 1 (0/15 XP)",
-		TextScaled = false,
-		TextSize = 15,
-		Parent = track,
-	}, 2.5)
-
 	gui.Parent = playerGui
 
 	local self = setmetatable({
 		Gui = gui,
 		Scale = scale,
 		Slots = slots,
-		XpFill = fill,
-		XpLabel = xpLabel,
 		Selected = 1,
 		OnSlotActivated = nil,
 	}, Hotbar)
@@ -271,13 +210,10 @@ function Hotbar.new(): Hotbar
 end
 
 function Hotbar.activate(self: Hotbar, index: number)
-	local unlocked = Profile.isSlotUnlocked(index)
-	if unlocked then
-		self.Selected = index
-		self:refresh()
-	end
+	self.Selected = index
+	self:refresh()
 	if self.OnSlotActivated then
-		(self.OnSlotActivated :: any)(index, Profile.equippedAt(index), unlocked)
+		(self.OnSlotActivated :: any)(index, Profile.equippedAt(index))
 	end
 end
 
@@ -285,13 +221,9 @@ function Hotbar.setScale(self: Hotbar, scale: number)
 	self.Scale.Scale = scale
 end
 
--- Redraws every slot and the level bar from the current profile.
+-- Redraws every slot from the current profile.
 function Hotbar.refresh(self: Hotbar)
-	local progress = Profile.progress()
-
 	for index, views in self.Slots do
-		local gate = Config.Hotbar.LevelGates[index] or 1
-		local unlocked = progress.Level >= gate
 		local cardId = Profile.equippedAt(index)
 		local card = if cardId then Cards.get(cardId) else nil
 
@@ -300,23 +232,12 @@ function Hotbar.refresh(self: Hotbar)
 			views.Icon = nil
 		end
 
-		if not unlocked then
-			views.Surface.BackgroundColor3 = Theme.Colors.SlotLocked
-			views.Stroke.Color = Color3.new(1, 1, 1)
-			views.Stroke.Transparency = 0.15
-			views.Content.Visible = false
-			views.KeyFrame.Visible = false
-			views.Lock.Visible = true
-			views.LockLabel.Visible = true
-			views.LockLabel.Text = `Lvl {gate}+`
-		elseif card then
+		if card then
 			local rarity = Rarities.get(card.Rarity)
 			local top = select(1, Theme.rarityBackdrop(rarity.Color))
 			views.Surface.BackgroundColor3 = top
 			views.Stroke.Color = rarity.Color
 			views.Stroke.Transparency = 0
-			views.Lock.Visible = false
-			views.LockLabel.Visible = false
 			views.KeyFrame.Visible = true
 			views.Content.Visible = true
 			views.NameLabel.Text = card.Name
@@ -333,24 +254,16 @@ function Hotbar.refresh(self: Hotbar)
 			views.Stroke.Color = Color3.fromRGB(90, 96, 112)
 			views.Stroke.Transparency = 0.2
 			views.Content.Visible = false
-			views.Lock.Visible = false
-			views.LockLabel.Visible = false
 			views.KeyFrame.Visible = true
 		end
 
 		-- Selection reads as a brighter, thicker edge.
-		local selected = unlocked and index == self.Selected
+		local selected = index == self.Selected
 		views.Stroke.Thickness = if selected then 5 else 3
 		views.Surface.Position = if selected
 			then UDim2.new(0.5, 0, 0.5, -4)
 			else UDim2.fromScale(0.5, 0.5)
 	end
-
-	local needed = if progress.Needed > 0 then progress.Needed else progress.IntoLevel
-	self.XpLabel.Text = `Level: {progress.Level} ({progress.IntoLevel}/{needed} XP)`
-	TweenService:Create(self.XpFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
-		Size = UDim2.fromScale(progress.Fraction, 1),
-	}):Play()
 end
 
 return Hotbar

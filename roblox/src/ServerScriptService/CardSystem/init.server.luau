@@ -2,7 +2,7 @@
 --[[
 	CardSystem server
 	Authoritative half of the system: it owns the Random object, the cooldown,
-	the pity counter, XP, the inventory and the hotbar. The client only asks
+	the pity counter, the inventory and the hotbar. The client only asks
 	for a hand, says which slot it wants, and asks to equip things.
 ]]
 
@@ -75,7 +75,7 @@ end
 local function onSelectCard(player: Player, rollId: any, slot: any)
 	local roll = pending[player]
 	local function refuse()
-		Remotes.SelectionResult:FireClient(player, false, nil, nil, 0)
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
 	end
 
 	if not roll then
@@ -95,14 +95,13 @@ local function onSelectCard(player: Player, rollId: any, slot: any)
 	pending[player] = nil
 	nextRollAt[player] = os.clock() + Config.RollCooldown
 
-	local xp = Inventory.award(player, cardId)
-	if not xp then
+	if not Inventory.award(player, cardId) then
 		warn(`[CardSystem] could not award "{cardId}" to {player.Name}`)
 		refuse()
 		return
 	end
 
-	Remotes.SelectionResult:FireClient(player, true, cardId, slot, xp)
+	Remotes.SelectionResult:FireClient(player, true, cardId, slot)
 	sync(player)
 end
 

@@ -199,22 +199,16 @@ local Config = {
 
 	-- Screen layout (pixels, authored against a 900px tall viewport) ------
 	Layout = {
-		XpBarHeight = 24,
-		XpBarWidth = 940,
-		XpBarBottom = 10, -- gap from the bottom edge
 		HotbarSlot = 84,
 		HotbarGap = 10,
-		HotbarBottom = 44, -- sits above the xp bar
-		RollBottom = 150, -- roll button clears the hotbar
+		HotbarBottom = 16, -- gap from the bottom edge
+		RollBottom = 106, -- the odds strip sits just above the hotbar
 		SideButton = 62, -- the inventory button on the left edge
 	},
 
 	-- Hotbar --------------------------------------------------------------
 	Hotbar = {
 		Slots = 6,
-		-- Level needed to use each slot, in order. Same shape as the
-		-- reference UI: three open, three gated.
-		LevelGates = { 1, 1, 1, 25, 50, 100 },
 	},
 
 	-- Inventory -----------------------------------------------------------
@@ -238,6 +232,10 @@ local Config = {
 	-- The stock Roblox backpack sits exactly where our hotbar goes.
 	HideDefaultBackpack = true,
 
+	-- Freeze the character while a hand of cards or the showcase is up, so
+	-- walking away cannot leave the cards behind you.
+	LockMovementDuringCards = true,
+
 	-- Keys -----------------------------------------------------------------
 	Keys = {
 		Roll = Enum.KeyCode.R,
@@ -260,78 +258,6 @@ return table.freeze(Config)
 			</Properties>
 		</Item>
 		<Item class="ModuleScript" referent="RBX5">
-			<Properties>
-				<string name="Name">Levels</string>
-				<ProtectedString name="Source"><![CDATA[--!strict
---[[
-	Levels
-	XP curve behind the bar under the hotbar, and the gates on the locked
-	hotbar slots.
-
-	The curve is quadratic: early levels come fast, later ones stretch out.
-]]
-
-local Rarities = require(script.Parent.Rarities)
-
-local Levels = {}
-
-Levels.MaxLevel = 200
-
--- XP needed to go from `level` to `level + 1`.
-function Levels.xpForNext(level: number): number
-	local n = math.max(1, math.floor(level))
-	return 15 + (n - 1) * 10 + math.floor((n - 1) ^ 2 * 0.6)
-end
-
--- Total XP banked at the start of `level`.
-function Levels.totalXpForLevel(level: number): number
-	local total = 0
-	for n = 1, math.max(1, math.floor(level)) - 1 do
-		total += Levels.xpForNext(n)
-	end
-	return total
-end
-
-export type Progress = {
-	Level: number,
-	IntoLevel: number,
-	Needed: number,
-	Fraction: number,
-}
-
--- Splits a total XP figure into the level and the progress inside it.
-function Levels.progress(totalXp: number): Progress
-	local remaining = math.max(0, math.floor(totalXp))
-	local level = 1
-	while level < Levels.MaxLevel do
-		local needed = Levels.xpForNext(level)
-		if remaining < needed then
-			break
-		end
-		remaining -= needed
-		level += 1
-	end
-
-	local needed = if level >= Levels.MaxLevel then 0 else Levels.xpForNext(level)
-	return {
-		Level = level,
-		IntoLevel = remaining,
-		Needed = needed,
-		Fraction = if needed > 0 then math.clamp(remaining / needed, 0, 1) else 1,
-	}
-end
-
--- XP paid out for keeping a card of this rarity.
-function Levels.xpForRarity(rarityId: string): number
-	local rarity = Rarities.get(rarityId)
-	return 5 + (rarity.Rank - 1) * 6
-end
-
-return Levels
-]]></ProtectedString>
-			</Properties>
-		</Item>
-		<Item class="ModuleScript" referent="RBX6">
 			<Properties>
 				<string name="Name">Rarities</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
@@ -464,7 +390,7 @@ return Rarities
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX7">
+		<Item class="ModuleScript" referent="RBX6">
 			<Properties>
 				<string name="Name">Remotes</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
@@ -553,7 +479,7 @@ return {
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX8">
+		<Item class="ModuleScript" referent="RBX7">
 			<Properties>
 				<string name="Name">RollLogic</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
@@ -632,7 +558,7 @@ return RollLogic
 ]]></ProtectedString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBX9">
+		<Item class="ModuleScript" referent="RBX8">
 			<Properties>
 				<string name="Name">Theme</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
@@ -666,11 +592,7 @@ Theme.Colors = {
 	Close = Color3.fromRGB(228, 46, 46),
 	CloseDark = Color3.fromRGB(140, 20, 20),
 	SlotEmpty = Color3.fromRGB(24, 26, 33),
-	SlotLocked = Color3.fromRGB(20, 21, 27),
 	Search = Color3.fromRGB(16, 17, 22),
-	XpTrack = Color3.fromRGB(20, 21, 27),
-	XpFillA = Color3.fromRGB(150, 70, 255),
-	XpFillB = Color3.fromRGB(70, 130, 255),
 	Equip = Color3.fromRGB(70, 180, 255),
 	Danger = Color3.fromRGB(228, 78, 78),
 }
@@ -818,49 +740,6 @@ function Theme.pill(props: { [string]: any }, color: Color3, text: string): Text
 			Size = UDim2.fromScale(1, 1),
 			Text = text,
 		}, 3),
-	})
-end
-
--- A chunky white padlock, drawn from parts so it needs no uploaded image.
-function Theme.lockIcon(props: { [string]: any }): Frame
-	local merged: { [string]: any } = {
-		Name = "Lock",
-		BackgroundTransparency = 1,
-	}
-	for key, value in props do
-		merged[key] = value
-	end
-	return make("Frame", merged, {
-		-- Shackle: a ring whose lower half is hidden behind the body.
-		make("Frame", {
-			Name = "Shackle",
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.02),
-			Size = UDim2.fromScale(0.52, 0.52),
-			BackgroundTransparency = 1,
-		}, {
-			Theme.corner(999),
-			Theme.stroke(Color3.new(1, 1, 1), 5),
-		}),
-		make("Frame", {
-			Name = "Body",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromScale(0.5, 1),
-			Size = UDim2.fromScale(0.78, 0.56),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BorderSizePixel = 0,
-		}, {
-			Theme.corner(6),
-			Theme.stroke(Theme.Colors.Outline, 2),
-			make("Frame", {
-				Name = "Keyhole",
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.45),
-				Size = UDim2.fromScale(0.2, 0.28),
-				BackgroundColor3 = Color3.fromRGB(30, 30, 36),
-				BorderSizePixel = 0,
-			}, { Theme.corner(999) }),
-		}),
 	})
 end
 

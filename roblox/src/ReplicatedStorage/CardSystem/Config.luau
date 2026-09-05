@@ -37,22 +37,16 @@ local Config = {
 
 	-- Screen layout (pixels, authored against a 900px tall viewport) ------
 	Layout = {
-		XpBarHeight = 24,
-		XpBarWidth = 940,
-		XpBarBottom = 10, -- gap from the bottom edge
 		HotbarSlot = 84,
 		HotbarGap = 10,
-		HotbarBottom = 44, -- sits above the xp bar
-		RollBottom = 150, -- roll button clears the hotbar
+		HotbarBottom = 16, -- gap from the bottom edge
+		RollBottom = 106, -- the odds strip sits just above the hotbar
 		SideButton = 62, -- the inventory button on the left edge
 	},
 
 	-- Hotbar --------------------------------------------------------------
 	Hotbar = {
 		Slots = 6,
-		-- Level needed to use each slot, in order. Same shape as the
-		-- reference UI: three open, three gated.
-		LevelGates = { 1, 1, 1, 25, 50, 100 },
 	},
 
 	-- Inventory -----------------------------------------------------------
@@ -75,6 +69,10 @@ local Config = {
 
 	-- The stock Roblox backpack sits exactly where our hotbar goes.
 	HideDefaultBackpack = true,
+
+	-- Freeze the character while a hand of cards or the showcase is up, so
+	-- walking away cannot leave the cards behind you.
+	LockMovementDuringCards = true,
 
 	-- Keys -----------------------------------------------------------------
 	Keys = {

@@ -29,11 +29,7 @@ Theme.Colors = {
 	Close = Color3.fromRGB(228, 46, 46),
 	CloseDark = Color3.fromRGB(140, 20, 20),
 	SlotEmpty = Color3.fromRGB(24, 26, 33),
-	SlotLocked = Color3.fromRGB(20, 21, 27),
 	Search = Color3.fromRGB(16, 17, 22),
-	XpTrack = Color3.fromRGB(20, 21, 27),
-	XpFillA = Color3.fromRGB(150, 70, 255),
-	XpFillB = Color3.fromRGB(70, 130, 255),
 	Equip = Color3.fromRGB(70, 180, 255),
 	Danger = Color3.fromRGB(228, 78, 78),
 }
@@ -181,49 +177,6 @@ function Theme.pill(props: { [string]: any }, color: Color3, text: string): Text
 			Size = UDim2.fromScale(1, 1),
 			Text = text,
 		}, 3),
-	})
-end
-
--- A chunky white padlock, drawn from parts so it needs no uploaded image.
-function Theme.lockIcon(props: { [string]: any }): Frame
-	local merged: { [string]: any } = {
-		Name = "Lock",
-		BackgroundTransparency = 1,
-	}
-	for key, value in props do
-		merged[key] = value
-	end
-	return make("Frame", merged, {
-		-- Shackle: a ring whose lower half is hidden behind the body.
-		make("Frame", {
-			Name = "Shackle",
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.02),
-			Size = UDim2.fromScale(0.52, 0.52),
-			BackgroundTransparency = 1,
-		}, {
-			Theme.corner(999),
-			Theme.stroke(Color3.new(1, 1, 1), 5),
-		}),
-		make("Frame", {
-			Name = "Body",
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromScale(0.5, 1),
-			Size = UDim2.fromScale(0.78, 0.56),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BorderSizePixel = 0,
-		}, {
-			Theme.corner(6),
-			Theme.stroke(Theme.Colors.Outline, 2),
-			make("Frame", {
-				Name = "Keyhole",
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.45),
-				Size = UDim2.fromScale(0.2, 0.28),
-				BackgroundColor3 = Color3.fromRGB(30, 30, 36),
-				BorderSizePixel = 0,
-			}, { Theme.corner(999) }),
-		}),
 	})
 end
 

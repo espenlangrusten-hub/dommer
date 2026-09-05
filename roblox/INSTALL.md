@@ -42,7 +42,6 @@ ReplicatedStorage
     ├── Cards             (ModuleScript)
     ├── Categories        (ModuleScript)
     ├── Config            (ModuleScript)
-    ├── Levels            (ModuleScript)
     ├── Rarities          (ModuleScript)
     ├── Remotes           (ModuleScript)
     ├── RollLogic         (ModuleScript)
@@ -76,9 +75,11 @@ Press **F5** (or the Play button).
 | `View` | full-screen item showcase, click anywhere to dismiss |
 | `1` - `6` | select a hotbar slot |
 
-The hotbar runs along the bottom with the XP bar under it. The first three
-slots are open, the last three unlock at levels 25, 50 and 100. Your level and
-card count also show in the player list, top right.
+The hotbar runs along the bottom, all six slots open. Your card count shows in
+the player list, top right.
+
+You cannot walk while a hand of cards or the showcase is on screen. That is
+deliberate, so you cannot leave them floating behind you.
 
 The stock Roblox backpack is hidden on join, because it sits exactly where the
 hotbar goes. Set `HideDefaultBackpack = false` in `Config` to keep it.
@@ -111,11 +112,10 @@ in the place. Delete the duplicate `CardClient` under StarterPlayerScripts.
 ## Changing things
 
 Everything tunable is in `ReplicatedStorage.CardSystem.Config` - roll cooldown,
-card size and spacing, animation speed, cursor lean, the screen layout, the
-hotbar level gates and the keybinds. Cards live in `Cards`, rarity tiers and
-their odds in `Rarities`, the inventory tabs in `Categories`, the XP curve in
-`Levels`, and every colour and font in `Theme`. See `roblox/README.md` for the
-details.
+card size and spacing, animation speed, cursor lean, the screen layout and the
+keybinds. Cards live in `Cards`, rarity tiers and their odds in `Rarities`, the
+inventory tabs in `Categories`, and every colour and font in `Theme`. See
+`roblox/README.md` for the details.
 
 ## Rebuilding these files
 

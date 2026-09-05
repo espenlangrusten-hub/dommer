@@ -6,12 +6,13 @@
 	It asserts three things:
 	  1. observed rarity frequencies match the configured weights,
 	  2. the pity counter caps how long a dry streak can run,
-	  3. every card in the catalogue is actually reachable.
+	  3. every card in the catalogue is actually reachable,
+	  4. no inventory tab would render empty.
 ]]
 
 -- ---------------------------------------------------------------- assertions
 local Rarities, Cards, RollLogic, Config = MODS.Rarities, MODS.Cards, MODS.RollLogic, MODS.Config
-local Categories, Levels = MODS.Categories, MODS.Levels
+local Categories = MODS.Categories
 math.randomseed(20260903)
 local rng = Random.new()
 
@@ -75,39 +76,5 @@ for _, category in Categories.List do
 	assert(bucket and #bucket > 0, "empty category: " .. category.Id)
 	print(string.format("category %-10s %d cards", category.Id, #bucket))
 end
-
--- the xp curve must never stall or go backwards
-local previous = 0
-for level = 1, Levels.MaxLevel - 1 do
-	local needed = Levels.xpForNext(level)
-	assert(needed > 0, "level " .. level .. " needs no xp")
-	assert(needed >= previous, "xp curve went backwards at level " .. level)
-	previous = needed
-end
-
--- landing exactly on a level boundary must report that level with no spill
-for level = 1, 60 do
-	local total = Levels.totalXpForLevel(level)
-	local progress = Levels.progress(total)
-	assert(progress.Level == level,
-		string.format("level %d boundary reported as %d", level, progress.Level))
-	assert(progress.IntoLevel == 0, "boundary had leftover xp at level " .. level)
-
-	-- one xp short of the boundary is the previous level, full bar
-	if level > 1 then
-		local before = Levels.progress(total - 1)
-		assert(before.Level == level - 1,
-			string.format("xp %d should still be level %d", total - 1, level - 1))
-	end
-end
-
--- a plausible play session should not blow past the hotbar gates instantly
-local xp = 0
-for _ = 1, 100 do
-	xp += Levels.xpForRarity("Common") * Config.CardsPerRoll / Config.CardsPerRoll
-end
-print(string.format("100 common pulls -> level %d", Levels.progress(xp).Level))
-print(string.format("xp to level 25: %d, to level 50: %d",
-	Levels.totalXpForLevel(25), Levels.totalXpForLevel(50)))
 
 print("OK")
