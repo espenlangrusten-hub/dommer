@@ -20,6 +20,13 @@ to keep it.
 | `StarterPlayerScripts/CardClient/CardVisual.luau` | client | one 3D card |
 | `StarterPlayerScripts/CardClient/RollUI.luau` | client | roll button, odds, banner |
 
+## Install
+
+Easiest path: **[INSTALL.md](INSTALL.md)** - three ready-made `.rbxmx` files in
+`build/` that you insert straight into Studio, no tooling required.
+
+The two developer paths follow.
+
 ## Install with Rojo
 
 ```bash

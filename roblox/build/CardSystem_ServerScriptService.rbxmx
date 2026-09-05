@@ -1,0 +1,361 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+	<External>null</External>
+	<External>nil</External>
+	<Item class="Script" referent="RBX1">
+		<Properties>
+			<string name="Name">CardSystem</string>
+			<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	CardSystem server
+	Authoritative half of the roll: it owns the Random object, the cooldown,
+	the pity counter and the inventory. The client only asks for a hand and
+	says which slot it wants.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local RollLogic = require(CardSystem:WaitForChild("RollLogic"))
+local Remotes = require(CardSystem:WaitForChild("Remotes")).get()
+
+local Inventory = require(script:WaitForChild("Inventory"))
+
+type PendingRoll = {
+	Id: number,
+	CardIds: { string },
+}
+
+local rng = Random.new()
+local pending: { [Player]: PendingRoll } = {}
+local nextRollAt: { [Player]: number } = {}
+local nextRollId = 0
+
+local function reject(player: Player, reason: string, retryAfter: number?)
+	Remotes.RollRejected:FireClient(player, reason, retryAfter or 0)
+end
+
+local function onRequestRoll(player: Player)
+	if not Inventory.get(player) then
+		reject(player, "Still loading your inventory, try again.")
+		return
+	end
+
+	if pending[player] then
+		reject(player, "Pick a card first.")
+		return
+	end
+
+	local now = os.clock()
+	local readyAt = nextRollAt[player] or 0
+	if now < readyAt then
+		reject(player, "Rolling too fast.", readyAt - now)
+		return
+	end
+
+	-- Reserve the cooldown immediately so a burst of requests cannot stack.
+	nextRollAt[player] = now + Config.RollCooldown
+
+	local hand, newPity = RollLogic.rollHand(rng, Inventory.getPity(player))
+	Inventory.setPity(player, newPity)
+
+	nextRollId += 1
+	local cardIds = {}
+	for _, card in hand do
+		table.insert(cardIds, card.Id)
+	end
+
+	pending[player] = { Id = nextRollId, CardIds = cardIds }
+	Remotes.RollResult:FireClient(player, nextRollId, cardIds)
+end
+
+local function onSelectCard(player: Player, rollId: any, slot: any)
+	local roll = pending[player]
+	if not roll then
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		return
+	end
+
+	if typeof(rollId) ~= "number" or rollId ~= roll.Id then
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		return
+	end
+
+	if typeof(slot) ~= "number" or slot ~= math.floor(slot) or slot < 1 or slot > #roll.CardIds then
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		return
+	end
+
+	local cardId = roll.CardIds[slot]
+	pending[player] = nil
+	nextRollAt[player] = os.clock() + Config.RollCooldown
+
+	local awarded = Inventory.award(player, cardId)
+	if not awarded then
+		warn(`[CardSystem] could not award "{cardId}" to {player.Name}`)
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		return
+	end
+
+	Remotes.SelectionResult:FireClient(player, true, cardId, slot)
+end
+
+local function onPlayerAdded(player: Player)
+	Inventory.load(player)
+end
+
+local function onPlayerRemoving(player: Player)
+	pending[player] = nil
+	nextRollAt[player] = nil
+	Inventory.release(player)
+end
+
+Remotes.RequestRoll.OnServerEvent:Connect(onRequestRoll)
+Remotes.SelectCard.OnServerEvent:Connect(onSelectCard)
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+-- Players who joined before this script finished loading.
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+
+Inventory.bindShutdown()
+
+print(`[CardSystem] ready - {#Cards.List} cards, {Config.CardsPerRoll} per roll`)
+]]></ProtectedString>
+		</Properties>
+		<Item class="ModuleScript" referent="RBX2">
+			<Properties>
+				<string name="Name">Inventory</string>
+				<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Inventory
+	Counts what each player has pulled and mirrors the total into leaderstats.
+
+	Persistence is opt-in and best effort: every DataStore call is wrapped in
+	pcall, and a failure degrades to an in-memory session inventory rather than
+	breaking the roll flow. DataStore access requires a published place with
+	Studio API access enabled.
+]]
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+
+local SAVE_ENABLED = true
+local STORE_NAME = "CardInventory_v1"
+local LOAD_RETRIES = 3
+
+export type Record = {
+	Counts: { [string]: number },
+	Pity: number,
+	Rolls: number,
+}
+
+local Inventory = {}
+
+local store: DataStore? = nil
+local storeWarned = false
+local records: { [Player]: Record } = {}
+
+if SAVE_ENABLED then
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = result
+	else
+		warn(`[CardSystem] DataStore unavailable, inventories are session only: {result}`)
+	end
+end
+
+local function emptyRecord(): Record
+	return { Counts = {}, Pity = 0, Rolls = 0 }
+end
+
+local function sanitise(raw: any): Record
+	local record = emptyRecord()
+	if typeof(raw) ~= "table" then
+		return record
+	end
+
+	if typeof(raw.Counts) == "table" then
+		for cardId, count in raw.Counts do
+			-- Drop cards that were removed from the catalogue since the save.
+			if typeof(cardId) == "string" and typeof(count) == "number" and Cards.get(cardId) then
+				record.Counts[cardId] = math.max(0, math.floor(count))
+			end
+		end
+	end
+	if typeof(raw.Pity) == "number" then
+		record.Pity = math.max(0, math.floor(raw.Pity))
+	end
+	if typeof(raw.Rolls) == "number" then
+		record.Rolls = math.max(0, math.floor(raw.Rolls))
+	end
+	return record
+end
+
+local function keyFor(player: Player): string
+	return `player_{player.UserId}`
+end
+
+local function totalCards(record: Record): number
+	local total = 0
+	for _, count in record.Counts do
+		total += count
+	end
+	return total
+end
+
+local function bestRarityName(record: Record): string
+	local bestRank, bestName = 0, "-"
+	for cardId, count in record.Counts do
+		local card = Cards.get(cardId)
+		if card and count > 0 then
+			local rarity = Rarities.get(card.Rarity)
+			if rarity.Rank > bestRank then
+				bestRank, bestName = rarity.Rank, rarity.Name
+			end
+		end
+	end
+	return bestName
+end
+
+local function refreshStats(player: Player)
+	local record = records[player]
+	if not record then
+		return
+	end
+	local stats = player:FindFirstChild("leaderstats")
+	if not stats then
+		return
+	end
+	local cardsStat = stats:FindFirstChild("Cards") :: IntValue?
+	if cardsStat then
+		cardsStat.Value = totalCards(record)
+	end
+	local bestStat = stats:FindFirstChild("Best") :: StringValue?
+	if bestStat then
+		bestStat.Value = bestRarityName(record)
+	end
+end
+
+function Inventory.load(player: Player)
+	local record = emptyRecord()
+
+	if store then
+		for attempt = 1, LOAD_RETRIES do
+			local ok, result = pcall(function()
+				return (store :: DataStore):GetAsync(keyFor(player))
+			end)
+			if ok then
+				record = sanitise(result)
+				break
+			end
+			if attempt == LOAD_RETRIES then
+				if not storeWarned then
+					storeWarned = true
+					warn(`[CardSystem] inventory load failed for {player.Name}: {result}`)
+				end
+			else
+				task.wait(attempt)
+			end
+		end
+	end
+
+	if not player:IsDescendantOf(Players) then
+		return -- left while the load was retrying
+	end
+
+	records[player] = record
+
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+
+	local cardsStat = Instance.new("IntValue")
+	cardsStat.Name = "Cards"
+	cardsStat.Parent = stats
+
+	local bestStat = Instance.new("StringValue")
+	bestStat.Name = "Best"
+	bestStat.Parent = stats
+
+	stats.Parent = player
+	refreshStats(player)
+end
+
+function Inventory.save(player: Player)
+	local record = records[player]
+	if not record or not store then
+		return
+	end
+	local ok, err = pcall(function()
+		(store :: DataStore):SetAsync(keyFor(player), record)
+	end)
+	if not ok and not storeWarned then
+		storeWarned = true
+		warn(`[CardSystem] inventory save failed for {player.Name}: {err}`)
+	end
+end
+
+function Inventory.release(player: Player)
+	Inventory.save(player)
+	records[player] = nil
+end
+
+function Inventory.get(player: Player): Record?
+	return records[player]
+end
+
+function Inventory.getPity(player: Player): number
+	local record = records[player]
+	return if record then record.Pity else 0
+end
+
+function Inventory.setPity(player: Player, value: number)
+	local record = records[player]
+	if record then
+		record.Pity = value
+		record.Rolls += 1
+	end
+end
+
+function Inventory.award(player: Player, cardId: string): boolean
+	local record = records[player]
+	if not record or not Cards.get(cardId) then
+		return false
+	end
+	record.Counts[cardId] = (record.Counts[cardId] or 0) + 1
+	refreshStats(player)
+	return true
+end
+
+-- Flush everything on shutdown so a server close does not eat a pull.
+function Inventory.bindShutdown()
+	game:BindToClose(function()
+		if RunService:IsStudio() then
+			return
+		end
+		for _, player in Players:GetPlayers() do
+			Inventory.save(player)
+		end
+		task.wait(1)
+	end)
+end
+
+return Inventory
+]]></ProtectedString>
+			</Properties>
+		</Item>
+	</Item>
+</roblox>
