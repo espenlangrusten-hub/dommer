@@ -111,12 +111,47 @@ Everything lives in `Config.luau`:
 - `Inventory.Columns`, `SlotSize` - the grid.
 - `Keys` - the keybinds.
 - `LockMovementDuringCards` - freeze the character during a reveal.
-- `Sounds` - drop in `rbxassetid://` strings; empty strings stay silent.
+- `Sounds` - drop in `rbxassetid://` strings; empty strings stay silent. See
+  **Adding sounds** below.
 
 Colours and the font are in `Theme.luau`. The reference UI uses a halftone dot
 texture behind every slot: upload one, paste its id into `Theme.DotTexture`,
 and every panel picks it up. While it is empty the slots use a two-stop
 gradient, which reads almost the same at slot size.
+
+## Adding sounds
+
+Roblox will only play audio that lives on its own servers, so a local file has
+to be uploaded first. There is no way around this.
+
+1. In Studio open **View** → **Asset Manager**.
+2. Click **Audio**, then the **+** (or **Bulk Import**), and pick your file.
+   Roblox accepts `.mp3` and `.ogg` up to seven minutes.
+3. Wait for moderation. It usually takes under a minute for a short clip, and
+   the asset shows up greyed out until it passes.
+4. Right-click the uploaded sound → **Copy Asset ID**.
+5. Open `ReplicatedStorage.CardSystem.Config` and paste it in:
+
+```lua
+Sounds = {
+    Roll = "",
+    Reveal = "rbxassetid://123456789",
+    ...
+},
+```
+
+| Entry | Fires when |
+| --- | --- |
+| `Roll` | the hand is dealt |
+| `Reveal` | each card turns face up, once per card |
+| `Select` | you keep a card |
+| `Rare` | you keep an Epic or better, instead of `Select` |
+| `Open` / `Close` | the inventory opens and closes |
+
+`RevealPitchStep` raises the playback speed a little for each later card in the
+hand, so three reveals in a row rise in pitch instead of sounding identical.
+Set it to `0` for three identical ticks. `SoundVolume` sets the level for all
+of them.
 
 ## Adding cards
 

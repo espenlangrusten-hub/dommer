@@ -164,13 +164,19 @@ local function setMovementLock(reason: string, locked: boolean)
 end
 
 -- Helpers ------------------------------------------------------------------
-local function playSound(id: string)
+--[[
+	Fire-and-forget 2D sound. PlayOnRemove means the engine plays it as the
+	instance is destroyed, so nothing has to be cleaned up afterwards and a
+	card being removed mid-sound cannot cut it off.
+]]
+local function playSound(id: string, pitch: number?)
 	if id == "" then
 		return
 	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = id
-	sound.Volume = 0.5
+	sound.Volume = Config.SoundVolume
+	sound.PlaybackSpeed = pitch or 1
 	sound.PlayOnRemove = true
 	sound.Parent = SoundService
 	sound:Destroy()
@@ -238,7 +244,14 @@ local function spawnHand(cardIds: { string })
 		local offset = (slot - middle) * Config.CardSpacing
 		local position = origin.Position + origin.RightVector * offset
 		-- lookAt puts the part's Front face (its -Z) toward the camera.
-		table.insert(visuals, CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder))
+		local visual = CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder)
+
+		-- Each card ticks as it turns face up, a step higher than the last.
+		visual.OnRevealed = function(revealedSlot: number)
+			playSound(Config.Sounds.Reveal, 1 + (revealedSlot - 1) * Config.RevealPitchStep)
+		end
+
+		table.insert(visuals, visual)
 	end
 
 	refreshFilter()
@@ -298,15 +311,12 @@ local function selectCard(visual: CardVisual.CardVisual)
 	Remotes.SelectCard:FireServer(activeRollId, visual.Slot)
 end
 
+-- One timer owns the whole cooldown, including the hand back to idle.
 local function returnToIdle(delay: number)
 	setState("cooldown")
-	local guard = currentTokenGuard()
-	ui:runCooldown(delay, guard)
-	task.delay(delay, function()
-		if guard() then
-			setState("idle")
-			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-		end
+	ui:runCooldown(delay, currentTokenGuard(), function()
+		setState("idle")
+		ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
 	end)
 end
 
@@ -381,6 +391,7 @@ end)
 ui.OnRoll = requestRoll
 ui.OnInventory = function()
 	inventory:toggle()
+	playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
 end
 
 inventory.OnView = function(cardId: string)
@@ -451,8 +462,10 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 
 	if input.KeyCode == Config.Keys.Inventory then
 		inventory:toggle()
+		playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
 	elseif input.KeyCode == Enum.KeyCode.Escape and inventory.Open then
 		inventory:close()
+		playSound(Config.Sounds.Close)
 	end
 end)
 
@@ -815,6 +828,7 @@ export type CardVisual = typeof(setmetatable(
 		Revealed: boolean,
 		Tilt: Vector2,
 		Hover: number,
+		OnRevealed: ((slot: number) -> ())?,
 		Front: CanvasGroup,
 		BackFace: CanvasGroup,
 		Light: PointLight,
@@ -925,6 +939,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		Revealed = false,
 		Tilt = Vector2.zero,
 		Hover = 0,
+		OnRevealed = nil,
 		Front = front,
 		BackFace = back,
 		Light = light,
@@ -970,6 +985,9 @@ function CardVisual.update(self: CardVisual, dt: number, tiltTarget: Vector2, ho
 		self.Revealed = true
 		if self.Rarity.Sparkle then
 			self.Sparks:Emit(28 + self.Rarity.Rank * 8)
+		end
+		if self.OnRevealed then
+			(self.OnRevealed :: any)(self.Slot)
 		end
 	end
 
@@ -1599,12 +1617,26 @@ function InventoryUI.new(): InventoryUI
 		Enabled = false,
 	}) :: ScreenGui
 
+	-- The panel body height has to be known before the holder can be sized.
+	local tabHeight = 34
+	local headerRoom = 16
+	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
+
+	local searchHeight = 34
+	local searchGap = 46
+
+	--[[
+		The holder is sized to everything it contains - search field, gap and
+		panel - so that anchoring it at 0.5, 0.5 actually centres the group.
+		A zero-height holder would centre nothing and let the panel hang off
+		the middle of the screen instead.
+	]]
 	local holder = make("Frame", {
 		Name = "Holder",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.46),
-		Size = UDim2.fromOffset(width, 1),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(width, searchHeight + searchGap + bodyHeight),
 		Parent = gui,
 	})
 
@@ -1613,9 +1645,9 @@ function InventoryUI.new(): InventoryUI
 	-- Search field above the panel, like the reference.
 	local searchBox = Theme.panel({
 		Name = "Search",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 0, -46),
-		Size = UDim2.fromOffset(width - 60, 34),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(width - 60, searchHeight),
 		BackgroundColor3 = Theme.Colors.Search,
 		Parent = holder,
 	}, Color3.fromRGB(58, 62, 76))
@@ -1643,15 +1675,10 @@ function InventoryUI.new(): InventoryUI
 		Parent = searchBox,
 	}) :: TextBox
 
-	-- The panel body.
-	local tabHeight = 34
-	local headerRoom = 16
-	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
-
 	local root = Theme.panel({
 		Name = "Panel",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, searchHeight + searchGap),
 		Size = UDim2.fromOffset(width, bodyHeight),
 		Parent = holder,
 	}) :: Frame
@@ -2445,11 +2472,22 @@ function RollUI.setStatus(self: RollUI, text: string)
 end
 
 --[[
-	Counts the cooldown down on the button face, then re-enables it.
+	Counts the cooldown down on the button face, re-enables it, and then runs
+	`onFinished`.
+
 	`isCurrent` returns false when a newer state took over, so a stale
-	countdown never re-enables the button behind the caller's back.
+	countdown never re-enables the button behind the caller's back. The
+	caller must not run its own timer alongside this one: two timers racing
+	on the same guard means whichever lands first invalidates the other, and
+	the button stays dead. That is why the state change is a callback here
+	rather than a separate `task.delay`.
 ]]
-function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> boolean)
+function RollUI.runCooldown(
+	self: RollUI,
+	seconds: number,
+	isCurrent: () -> boolean,
+	onFinished: (() -> ())?
+)
 	task.spawn(function()
 		local remaining = seconds
 		while remaining > 0 do
@@ -2459,8 +2497,12 @@ function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> bool
 			self:setEnabled(false, string.format("%.1fs", remaining))
 			remaining -= task.wait(0.1)
 		end
-		if isCurrent() then
-			self:setEnabled(true)
+		if not isCurrent() then
+			return
+		end
+		self:setEnabled(true)
+		if onFinished then
+			onFinished()
 		end
 	end)
 end

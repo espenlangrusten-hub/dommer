@@ -291,12 +291,26 @@ function InventoryUI.new(): InventoryUI
 		Enabled = false,
 	}) :: ScreenGui
 
+	-- The panel body height has to be known before the holder can be sized.
+	local tabHeight = 34
+	local headerRoom = 16
+	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
+
+	local searchHeight = 34
+	local searchGap = 46
+
+	--[[
+		The holder is sized to everything it contains - search field, gap and
+		panel - so that anchoring it at 0.5, 0.5 actually centres the group.
+		A zero-height holder would centre nothing and let the panel hang off
+		the middle of the screen instead.
+	]]
 	local holder = make("Frame", {
 		Name = "Holder",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.46),
-		Size = UDim2.fromOffset(width, 1),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(width, searchHeight + searchGap + bodyHeight),
 		Parent = gui,
 	})
 
@@ -305,9 +319,9 @@ function InventoryUI.new(): InventoryUI
 	-- Search field above the panel, like the reference.
 	local searchBox = Theme.panel({
 		Name = "Search",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 0, -46),
-		Size = UDim2.fromOffset(width - 60, 34),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(width - 60, searchHeight),
 		BackgroundColor3 = Theme.Colors.Search,
 		Parent = holder,
 	}, Color3.fromRGB(58, 62, 76))
@@ -335,15 +349,10 @@ function InventoryUI.new(): InventoryUI
 		Parent = searchBox,
 	}) :: TextBox
 
-	-- The panel body.
-	local tabHeight = 34
-	local headerRoom = 16
-	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
-
 	local root = Theme.panel({
 		Name = "Panel",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, searchHeight + searchGap),
 		Size = UDim2.fromOffset(width, bodyHeight),
 		Parent = holder,
 	}) :: Frame

@@ -348,11 +348,22 @@ function RollUI.setStatus(self: RollUI, text: string)
 end
 
 --[[
-	Counts the cooldown down on the button face, then re-enables it.
+	Counts the cooldown down on the button face, re-enables it, and then runs
+	`onFinished`.
+
 	`isCurrent` returns false when a newer state took over, so a stale
-	countdown never re-enables the button behind the caller's back.
+	countdown never re-enables the button behind the caller's back. The
+	caller must not run its own timer alongside this one: two timers racing
+	on the same guard means whichever lands first invalidates the other, and
+	the button stays dead. That is why the state change is a callback here
+	rather than a separate `task.delay`.
 ]]
-function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> boolean)
+function RollUI.runCooldown(
+	self: RollUI,
+	seconds: number,
+	isCurrent: () -> boolean,
+	onFinished: (() -> ())?
+)
 	task.spawn(function()
 		local remaining = seconds
 		while remaining > 0 do
@@ -362,8 +373,12 @@ function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> bool
 			self:setEnabled(false, string.format("%.1fs", remaining))
 			remaining -= task.wait(0.1)
 		end
-		if isCurrent() then
-			self:setEnabled(true)
+		if not isCurrent() then
+			return
+		end
+		self:setEnabled(true)
+		if onFinished then
+			onFinished()
 		end
 	end)
 end

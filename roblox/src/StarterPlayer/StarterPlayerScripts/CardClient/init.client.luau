@@ -158,13 +158,19 @@ local function setMovementLock(reason: string, locked: boolean)
 end
 
 -- Helpers ------------------------------------------------------------------
-local function playSound(id: string)
+--[[
+	Fire-and-forget 2D sound. PlayOnRemove means the engine plays it as the
+	instance is destroyed, so nothing has to be cleaned up afterwards and a
+	card being removed mid-sound cannot cut it off.
+]]
+local function playSound(id: string, pitch: number?)
 	if id == "" then
 		return
 	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = id
-	sound.Volume = 0.5
+	sound.Volume = Config.SoundVolume
+	sound.PlaybackSpeed = pitch or 1
 	sound.PlayOnRemove = true
 	sound.Parent = SoundService
 	sound:Destroy()
@@ -232,7 +238,14 @@ local function spawnHand(cardIds: { string })
 		local offset = (slot - middle) * Config.CardSpacing
 		local position = origin.Position + origin.RightVector * offset
 		-- lookAt puts the part's Front face (its -Z) toward the camera.
-		table.insert(visuals, CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder))
+		local visual = CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder)
+
+		-- Each card ticks as it turns face up, a step higher than the last.
+		visual.OnRevealed = function(revealedSlot: number)
+			playSound(Config.Sounds.Reveal, 1 + (revealedSlot - 1) * Config.RevealPitchStep)
+		end
+
+		table.insert(visuals, visual)
 	end
 
 	refreshFilter()
@@ -292,15 +305,12 @@ local function selectCard(visual: CardVisual.CardVisual)
 	Remotes.SelectCard:FireServer(activeRollId, visual.Slot)
 end
 
+-- One timer owns the whole cooldown, including the hand back to idle.
 local function returnToIdle(delay: number)
 	setState("cooldown")
-	local guard = currentTokenGuard()
-	ui:runCooldown(delay, guard)
-	task.delay(delay, function()
-		if guard() then
-			setState("idle")
-			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-		end
+	ui:runCooldown(delay, currentTokenGuard(), function()
+		setState("idle")
+		ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
 	end)
 end
 
@@ -375,6 +385,7 @@ end)
 ui.OnRoll = requestRoll
 ui.OnInventory = function()
 	inventory:toggle()
+	playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
 end
 
 inventory.OnView = function(cardId: string)
@@ -445,8 +456,10 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 
 	if input.KeyCode == Config.Keys.Inventory then
 		inventory:toggle()
+		playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
 	elseif input.KeyCode == Enum.KeyCode.Escape and inventory.Open then
 		inventory:close()
+		playSound(Config.Sounds.Close)
 	end
 end)
 

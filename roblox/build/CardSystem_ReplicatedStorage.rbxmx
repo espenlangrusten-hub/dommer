@@ -242,15 +242,24 @@ local Config = {
 		Inventory = Enum.KeyCode.E,
 	},
 
-	-- Sounds (leave "" to stay silent) -----------------------------------
+	--[[
+		Sounds. Paste Roblox asset ids as "rbxassetid://123456789".
+		An empty string stays silent, so the system works with none set.
+
+		Reveal fires once per card as it flips face up. RevealPitchStep raises
+		the playback speed for each later card in the hand, so three reveals in
+		a row rise instead of sounding identical.
+	]]
 	Sounds = {
 		Roll = "",
-		Flip = "",
+		Reveal = "",
 		Select = "",
 		Rare = "",
 		Open = "",
 		Close = "",
 	},
+	RevealPitchStep = 0.06,
+	SoundVolume = 0.5,
 }
 
 return table.freeze(Config)

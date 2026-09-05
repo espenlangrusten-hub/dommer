@@ -109,6 +109,20 @@ first.
 **Two hotbars, or the UI drawn twice.** An older copy of the scripts is still
 in the place. Delete the duplicate `CardClient` under StarterPlayerScripts.
 
+## Sounds
+
+The system ships silent. To add the card reveal tick or any other sound, upload
+the audio in Studio (**View** → **Asset Manager** → **Audio** → **+**), wait for
+moderation, right-click it → **Copy Asset ID**, and paste the id into
+`ReplicatedStorage.CardSystem.Config` under `Sounds.Reveal`:
+
+```lua
+Reveal = "rbxassetid://123456789",
+```
+
+`Reveal` plays once per card as it flips face up. The other entries are listed
+in `roblox/README.md`.
+
 ## Changing things
 
 Everything tunable is in `ReplicatedStorage.CardSystem.Config` - roll cooldown,

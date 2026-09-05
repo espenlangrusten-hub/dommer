@@ -229,6 +229,7 @@ export type CardVisual = typeof(setmetatable(
 		Revealed: boolean,
 		Tilt: Vector2,
 		Hover: number,
+		OnRevealed: ((slot: number) -> ())?,
 		Front: CanvasGroup,
 		BackFace: CanvasGroup,
 		Light: PointLight,
@@ -339,6 +340,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		Revealed = false,
 		Tilt = Vector2.zero,
 		Hover = 0,
+		OnRevealed = nil,
 		Front = front,
 		BackFace = back,
 		Light = light,
@@ -384,6 +386,9 @@ function CardVisual.update(self: CardVisual, dt: number, tiltTarget: Vector2, ho
 		self.Revealed = true
 		if self.Rarity.Sparkle then
 			self.Sparks:Emit(28 + self.Rarity.Rank * 8)
+		end
+		if self.OnRevealed then
+			(self.OnRevealed :: any)(self.Slot)
 		end
 	end
 
