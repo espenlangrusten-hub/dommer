@@ -272,3 +272,23 @@ luau-lsp analyze --definitions=globalTypes.d.luau --no-strict-dm-types \
 - The catalogue ships without art. Point `Icon` at your own decals.
 - Equipping a card is tracked and saved, but it has no gameplay effect yet.
   `Hotbar.OnSlotActivated` in the client is where you hook one up.
+
+## Sending the code to someone
+
+To hand the scripts to someone who does not have this repo:
+
+```bash
+python3 roblox/tools/export_plain.py
+```
+
+It writes `roblox/build/card-system-source.txt`: every script in one file,
+comments stripped, each one headed by the exact name and location it needs in
+Studio. Paste it into a GitHub Gist, or send the file directly.
+
+Stripping is done with a character scanner rather than a regular expression,
+because `--` only opens a comment outside of a string - short strings, Luau
+backtick strings and long bracket strings all have to be skipped intact. The
+result is verified by compiling both versions and comparing instruction-level
+bytecode, which matches for every file.
+
+The sources under `roblox/src` keep their comments.

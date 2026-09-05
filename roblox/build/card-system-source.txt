@@ -1,0 +1,3988 @@
+ROBLOX CARD SYSTEM - FULL SOURCE
+
+Comments stripped. Create each script below with the exact name shown,
+in the location shown, and paste its body in. Names matter: every
+require looks the modules up by name.
+
+  ReplicatedStorage > CardSystem (Folder)
+  ServerScriptService > CardSystem (Script)
+  StarterPlayer > StarterPlayerScripts > CardClient (LocalScript)
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Cards (ModuleScript)
+==============================================================================
+
+local Categories = require(script.Parent.Categories)
+local Rarities = require(script.Parent.Rarities)
+
+export type Card = {
+	Id: string,
+	Name: string,
+	Rarity: string,
+	Category: string,
+	Icon: string,
+	Flavor: string,
+	Description: string,
+}
+
+local list: { Card } = {
+
+	{ Id = "emberstrike", Name = "Emberstrike", Rarity = "Common", Category = "Weapons", Icon = "", Flavor = "Why was the rock so confident? It was rock solid.", Description = "A starter blade that never quite cools down." },
+	{ Id = "oak_cudgel", Name = "Oak Cudgel", Rarity = "Common", Category = "Weapons", Icon = "", Flavor = "Simple, heavy, and entirely without opinions.", Description = "Heavy, blunt, and impossible to break." },
+	{ Id = "field_dagger", Name = "Field Dagger", Rarity = "Common", Category = "Weapons", Icon = "", Flavor = "Sharp enough for bread. Mostly used for bread.", Description = "Quick strikes, short reach." },
+	{ Id = "frostbite", Name = "Frostbite", Rarity = "Uncommon", Category = "Weapons", Icon = "", Flavor = "It does not cut. It convinces things to stop moving.", Description = "Slows whatever it touches." },
+	{ Id = "gale_edge", Name = "Gale Edge", Rarity = "Uncommon", Category = "Weapons", Icon = "", Flavor = "Swing it twice and the second one arrives first.", Description = "Swings faster the longer you hold it." },
+	{ Id = "stormpiercer", Name = "Stormpiercer", Rarity = "Rare", Category = "Weapons", Icon = "", Flavor = "Lightning takes the shortest path. This is the path.", Description = "Calls down a strike on a critical hit." },
+	{ Id = "ironwake", Name = "Ironwake", Rarity = "Rare", Category = "Weapons", Icon = "", Flavor = "Leaves a trail even the ground remembers.", Description = "Leaves a damaging trail behind you." },
+	{ Id = "rocksplitter", Name = "Rocksplitter", Rarity = "Epic", Category = "Weapons", Icon = "", Flavor = "What did the stone say to the pickaxe? \"I'm stoned.\"", Description = "Breaks armour and terrain alike." },
+	{ Id = "voidlash", Name = "Voidlash", Rarity = "Epic", Category = "Weapons", Icon = "", Flavor = "Cracks the air. The air files a complaint.", Description = "Pulls distant enemies toward you." },
+	{ Id = "kingsfall", Name = "Kingsfall", Rarity = "Legendary", Category = "Weapons", Icon = "", Flavor = "Crowns are only heavy until this removes them.", Description = "Deals bonus damage to bosses." },
+
+	{ Id = "ashen_idol", Name = "Ashen Idol", Rarity = "Common", Category = "Relics", Icon = "", Flavor = "Still warm. It has been still warm for centuries.", Description = "A small passive boost to fire damage." },
+	{ Id = "verdant_totem", Name = "Verdant Totem", Rarity = "Uncommon", Category = "Relics", Icon = "", Flavor = "Grows one leaf for every fight you survive.", Description = "Regenerates health out of combat." },
+	{ Id = "tidecaller", Name = "Tidecaller", Rarity = "Rare", Category = "Relics", Icon = "", Flavor = "The sea answers. It is not always polite about it.", Description = "Grants a water shield when low." },
+	{ Id = "sunspire", Name = "Sunspire", Rarity = "Epic", Category = "Relics", Icon = "", Flavor = "Warm to hold. Warmer to be hit by.", Description = "Burns everything within a short radius." },
+	{ Id = "the_devourer", Name = "The Devourer", Rarity = "Legendary", Category = "Relics", Icon = "", Flavor = "It's not hungry. It's just always hungry.", Description = "Heals you for part of the damage you deal." },
+	{ Id = "worldroot", Name = "Worldroot", Rarity = "Mythic", Category = "Relics", Icon = "", Flavor = "Older than the map it is standing on.", Description = "Boosts every other relic you carry." },
+
+	{ Id = "tin_buckler", Name = "Tin Buckler", Rarity = "Common", Category = "Trinkets", Icon = "", Flavor = "Dents are just the shield remembering things.", Description = "Blocks one hit every few seconds." },
+	{ Id = "glass_charm", Name = "Glass Charm", Rarity = "Common", Category = "Trinkets", Icon = "", Flavor = "Beautiful. Fragile. Mostly beautiful.", Description = "More damage dealt, more damage taken." },
+	{ Id = "luck_coin", Name = "Luck Coin", Rarity = "Uncommon", Category = "Trinkets", Icon = "", Flavor = "Lands on its edge more often than it should.", Description = "Slightly better roll luck while held." },
+	{ Id = "ember_ring", Name = "Ember Ring", Rarity = "Rare", Category = "Trinkets", Icon = "", Flavor = "Keeps one spark from every fire it has seen.", Description = "Your first hit each fight burns." },
+
+	{ Id = "summon_pass", Name = "Summon Pass", Rarity = "Uncommon", Category = "Tickets", Icon = "", Flavor = "One free look at whatever the machine has today.", Description = "Can be used for a free roll." },
+	{ Id = "raid_ticket", Name = "Raid Ticket", Rarity = "Rare", Category = "Tickets", Icon = "", Flavor = "Admits one. Return trip not guaranteed.", Description = "Can be used in Raids." },
+	{ Id = "golden_voucher", Name = "Golden Voucher", Rarity = "Epic", Category = "Tickets", Icon = "", Flavor = "Worth exactly as much as someone will give you.", Description = "Trades for high tier rewards." },
+	{ Id = "eclipse_seal", Name = "Eclipse Seal", Rarity = "Legendary", Category = "Tickets", Icon = "", Flavor = "Opens the door that is only there sometimes.", Description = "Unlocks the eclipse event." },
+}
+
+local Cards = {}
+
+Cards.List = list
+Cards.ById = {} :: { [string]: Card }
+Cards.ByRarity = {} :: { [string]: { Card } }
+Cards.ByCategory = {} :: { [string]: { Card } }
+
+for _, card in list do
+	assert(Cards.ById[card.Id] == nil, `duplicate card id "{card.Id}"`)
+	Rarities.get(card.Rarity)
+	assert(Categories.exists(card.Category), `card "{card.Id}" has unknown category "{card.Category}"`)
+	Cards.ById[card.Id] = card
+
+	local byRarity = Cards.ByRarity[card.Rarity]
+	if not byRarity then
+		byRarity = {}
+		Cards.ByRarity[card.Rarity] = byRarity
+	end
+	table.insert(byRarity, card)
+
+	local byCategory = Cards.ByCategory[card.Category]
+	if not byCategory then
+		byCategory = {}
+		Cards.ByCategory[card.Category] = byCategory
+	end
+	table.insert(byCategory, card)
+end
+
+function Cards.get(id: string): Card?
+	return Cards.ById[id]
+end
+
+for _, rarity in Rarities.List do
+	assert(Cards.ByRarity[rarity.Id], `rarity "{rarity.Id}" has no cards`)
+end
+
+for _, category in Categories.List do
+	assert(Cards.ByCategory[category.Id], `category "{category.Id}" has no cards`)
+end
+
+return Cards
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Categories (ModuleScript)
+==============================================================================
+
+export type Category = {
+	Id: string,
+	Name: string,
+	Color: Color3,
+}
+
+local Categories = {}
+
+Categories.AllId = "All"
+Categories.AllColor = Color3.fromRGB(79, 195, 247)
+
+Categories.List = {
+	{ Id = "Weapons", Name = "Weapons", Color = Color3.fromRGB(255, 196, 40) },
+	{ Id = "Relics", Name = "Relics", Color = Color3.fromRGB(255, 152, 40) },
+	{ Id = "Trinkets", Name = "Trinkets", Color = Color3.fromRGB(120, 214, 60) },
+	{ Id = "Tickets", Name = "Tickets", Color = Color3.fromRGB(86, 200, 90) },
+} :: { Category }
+
+Categories.ById = {} :: { [string]: Category }
+for _, category in Categories.List do
+	Categories.ById[category.Id] = category
+end
+
+function Categories.exists(id: string): boolean
+	return id == Categories.AllId or Categories.ById[id] ~= nil
+end
+
+return Categories
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Config (ModuleScript)
+==============================================================================
+
+local Config = {
+
+	CardsPerRoll = 3,
+	RollCooldown = 2,
+	PityRolls = 12,
+	PityMinimumRarity = "Rare",
+
+	CardSize = Vector3.new(3.8, 5.3, 0.16),
+	CardSpacing = 4.3,
+	CameraDistance = 9,
+	CameraHeightOffset = 0.4,
+	PixelsPerStud = 110,
+
+	EnterDuration = 0.45,
+	EnterStagger = 0.13,
+	EnterDrop = 4,
+	EnterScale = 0.82,
+	FlipDuration = 0.55,
+	FlipStagger = 0.24,
+	ExitDuration = 0.5,
+
+	MaxTilt = math.rad(15),
+	TiltSmoothing = 10,
+	HoverPop = 0.5,
+	HoverScale = 1.06,
+	HoverLift = 0.25,
+
+	Layout = {
+		HotbarSlot = 84,
+		HotbarGap = 10,
+		HotbarBottom = 16,
+		RollBottom = 106,
+
+		RollWidth = 240,
+		RollHeight = 106,
+		SideButton = 62,
+	},
+
+	Hotbar = {
+		Slots = 6,
+	},
+
+	Inventory = {
+		Columns = 5,
+		VisibleRows = 3,
+		SlotSize = 92,
+		SlotGap = 8,
+		PanelPadding = 12,
+	},
+
+	Showcase = {
+		Distance = 8,
+		Size = Vector3.new(5.4, 3.4, 0.2),
+		SpinSpeed = 0.35,
+		BobHeight = 0.15,
+		BobSpeed = 1.6,
+	},
+
+	HideDefaultBackpack = true,
+
+	LockMovementDuringCards = true,
+
+	Keys = {
+		Roll = Enum.KeyCode.R,
+		Inventory = Enum.KeyCode.E,
+	},
+
+	Sounds = {
+		Roll = "",
+		Reveal = "",
+		Select = "",
+		Rare = "",
+		Open = "",
+		Close = "",
+	},
+	RevealPitchStep = 0.06,
+	SoundVolume = 0.5,
+}
+
+return table.freeze(Config)
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Rarities (ModuleScript)
+==============================================================================
+
+export type Rarity = {
+	Id: string,
+	Name: string,
+	Weight: number,
+	Color: Color3,
+	TextColor: Color3,
+	GlowColor: Color3,
+	GlowBrightness: number,
+	RevealDelay: number,
+	Sparkle: boolean,
+	Rank: number,
+}
+
+local list: { Rarity } = {
+	{
+		Id = "Common",
+		Name = "COMMON",
+		Weight = 1000,
+		Color = Color3.fromRGB(168, 172, 180),
+		TextColor = Color3.fromRGB(226, 229, 235),
+		GlowColor = Color3.fromRGB(180, 186, 198),
+		GlowBrightness = 0.6,
+		RevealDelay = 0,
+		Sparkle = false,
+		Rank = 0,
+	},
+	{
+		Id = "Uncommon",
+		Name = "UNCOMMON",
+		Weight = 520,
+		Color = Color3.fromRGB(80, 214, 120),
+		TextColor = Color3.fromRGB(140, 245, 170),
+		GlowColor = Color3.fromRGB(70, 220, 120),
+		GlowBrightness = 0.9,
+		RevealDelay = 0.05,
+		Sparkle = false,
+		Rank = 0,
+	},
+	{
+		Id = "Rare",
+		Name = "RARE",
+		Weight = 220,
+		Color = Color3.fromRGB(70, 150, 255),
+		TextColor = Color3.fromRGB(135, 190, 255),
+		GlowColor = Color3.fromRGB(70, 150, 255),
+		GlowBrightness = 1.2,
+		RevealDelay = 0.12,
+		Sparkle = false,
+		Rank = 0,
+	},
+	{
+		Id = "Epic",
+		Name = "EPIC",
+		Weight = 90,
+		Color = Color3.fromRGB(168, 85, 247),
+		TextColor = Color3.fromRGB(206, 152, 255),
+		GlowColor = Color3.fromRGB(168, 85, 247),
+		GlowBrightness = 1.7,
+		RevealDelay = 0.22,
+		Sparkle = true,
+		Rank = 0,
+	},
+	{
+		Id = "Legendary",
+		Name = "LEGENDARY",
+		Weight = 22,
+		Color = Color3.fromRGB(240, 190, 40),
+		TextColor = Color3.fromRGB(255, 214, 92),
+		GlowColor = Color3.fromRGB(255, 190, 40),
+		GlowBrightness = 2.4,
+		RevealDelay = 0.4,
+		Sparkle = true,
+		Rank = 0,
+	},
+	{
+		Id = "Mythic",
+		Name = "MYTHIC",
+		Weight = 4,
+		Color = Color3.fromRGB(255, 70, 110),
+		TextColor = Color3.fromRGB(255, 130, 165),
+		GlowColor = Color3.fromRGB(255, 60, 110),
+		GlowBrightness = 3,
+		RevealDelay = 0.6,
+		Sparkle = true,
+		Rank = 0,
+	},
+}
+
+local Rarities = {}
+
+Rarities.List = list
+Rarities.ById = {} :: { [string]: Rarity }
+
+local totalWeight = 0
+for index, rarity in list do
+	rarity.Rank = index
+	totalWeight += rarity.Weight
+	Rarities.ById[rarity.Id] = rarity
+end
+
+Rarities.TotalWeight = totalWeight
+
+function Rarities.get(id: string): Rarity
+	local rarity = Rarities.ById[id]
+	assert(rarity, `unknown rarity "{id}"`)
+	return rarity
+end
+
+function Rarities.chancePercent(id: string): number
+	return Rarities.get(id).Weight / totalWeight * 100
+end
+
+function Rarities.oneInN(id: string): number
+	return totalWeight / Rarities.get(id).Weight
+end
+
+return Rarities
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Remotes (ModuleScript)
+==============================================================================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local FOLDER_NAME = "CardRemotes"
+local EVENT_NAMES = {
+	"RequestRoll",
+	"RollResult",
+	"RollRejected",
+	"SelectCard",
+	"SelectionResult",
+	"EquipCard",
+	"ProfileSync",
+	"Notice",
+}
+
+export type Remotes = {
+	RequestRoll: RemoteEvent,
+	RollResult: RemoteEvent,
+	RollRejected: RemoteEvent,
+	SelectCard: RemoteEvent,
+	SelectionResult: RemoteEvent,
+	EquipCard: RemoteEvent,
+	ProfileSync: RemoteEvent,
+	Notice: RemoteEvent,
+}
+
+local cached: Remotes? = nil
+
+local function build(): Remotes
+	local remotes = {}
+
+	if RunService:IsServer() then
+		local folder = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
+		if not folder then
+			folder = Instance.new("Folder")
+			folder.Name = FOLDER_NAME
+			folder.Parent = ReplicatedStorage
+		end
+
+		for _, name in EVENT_NAMES do
+			local event = folder:FindFirstChild(name)
+			if not event then
+				event = Instance.new("RemoteEvent")
+				event.Name = name
+				event.Parent = folder
+			end
+			remotes[name] = event
+		end
+	else
+		local folder = ReplicatedStorage:WaitForChild(FOLDER_NAME)
+		for _, name in EVENT_NAMES do
+			remotes[name] = folder:WaitForChild(name)
+		end
+	end
+
+	return (remotes :: any) :: Remotes
+end
+
+return {
+	get = function(): Remotes
+		if not cached then
+			cached = build()
+		end
+		return (cached :: any) :: Remotes
+	end,
+}
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > RollLogic (ModuleScript)
+==============================================================================
+
+local Cards = require(script.Parent.Cards)
+local Config = require(script.Parent.Config)
+local Rarities = require(script.Parent.Rarities)
+
+type Card = Cards.Card
+type Rarity = Rarities.Rarity
+
+local RollLogic = {}
+
+function RollLogic.pickRarity(rng: Random): Rarity
+	local roll = rng:NextNumber(0, Rarities.TotalWeight)
+	local running = 0
+	for _, rarity in Rarities.List do
+		running += rarity.Weight
+		if roll <= running then
+			return rarity
+		end
+	end
+
+	return Rarities.List[#Rarities.List]
+end
+
+function RollLogic.pickCardOfRarity(rng: Random, rarityId: string): Card
+	local pool = Cards.ByRarity[rarityId]
+	assert(pool and #pool > 0, `no cards for rarity "{rarityId}"`)
+	return pool[rng:NextInteger(1, #pool)]
+end
+
+function RollLogic.pickCard(rng: Random): Card
+	return RollLogic.pickCardOfRarity(rng, RollLogic.pickRarity(rng).Id)
+end
+
+function RollLogic.rollHand(rng: Random, pityCounter: number): ({ Card }, number)
+	local hand: { Card } = {}
+	for _ = 1, Config.CardsPerRoll do
+		table.insert(hand, RollLogic.pickCard(rng))
+	end
+
+	local minRank = Rarities.get(Config.PityMinimumRarity).Rank
+	local best = 0
+	for _, card in hand do
+		best = math.max(best, Rarities.get(card.Rarity).Rank)
+	end
+
+	local pityActive = Config.PityRolls > 0
+	if pityActive and best < minRank and pityCounter + 1 >= Config.PityRolls then
+
+		local slot = rng:NextInteger(1, #hand)
+		hand[slot] = RollLogic.pickCardOfRarity(rng, Config.PityMinimumRarity)
+		best = minRank
+	end
+
+	local nextPity = if best >= minRank then 0 else pityCounter + 1
+	return hand, nextPity
+end
+
+return RollLogic
+
+
+==============================================================================
+ReplicatedStorage > CardSystem (Folder) > Theme (ModuleScript)
+==============================================================================
+
+local Theme = {}
+
+Theme.Font = Enum.Font.FredokaOne
+Theme.FontFallback = Enum.Font.GothamBold
+
+Theme.Colors = {
+	PanelBody = Color3.fromRGB(17, 18, 24),
+	PanelBodyDeep = Color3.fromRGB(10, 11, 15),
+	PanelBorder = Color3.fromRGB(86, 224, 34),
+	PanelBorderDark = Color3.fromRGB(44, 130, 14),
+	HeaderLight = Color3.fromRGB(140, 240, 60),
+	HeaderDark = Color3.fromRGB(70, 190, 22),
+	Text = Color3.fromRGB(255, 255, 255),
+	TextDim = Color3.fromRGB(186, 192, 204),
+	Outline = Color3.fromRGB(0, 0, 0),
+	Count = Color3.fromRGB(255, 178, 24),
+	Close = Color3.fromRGB(228, 46, 46),
+	CloseDark = Color3.fromRGB(140, 20, 20),
+	SlotEmpty = Color3.fromRGB(24, 26, 33),
+	Search = Color3.fromRGB(16, 17, 22),
+	Equip = Color3.fromRGB(70, 180, 255),
+	Danger = Color3.fromRGB(228, 78, 78),
+}
+
+Theme.DotTexture = ""
+Theme.DotTileSize = UDim2.fromOffset(16, 16)
+Theme.DotTransparency = 0.86
+
+Theme.Images = {
+
+	RollButton = "",
+
+	HotbarSlots = { "", "", "", "", "", "" },
+}
+
+Theme.SlotArt = {
+	BodyHeightRatio = 0.857,
+	WidthRatio = 1.05,
+
+	Tint = false,
+}
+
+function Theme.make(className: string, props: { [string]: any }, children: { any }?): any
+	local instance = Instance.new(className)
+	local parent = props.Parent
+	for key, value in props do
+		if key ~= "Parent" then
+			(instance :: any)[key] = value
+		end
+	end
+	if children then
+		for _, child in children do
+			child.Parent = instance
+		end
+	end
+
+	if parent then
+		instance.Parent = parent
+	end
+	return instance
+end
+
+local make = Theme.make
+
+function Theme.corner(radius: number): any
+	return make("UICorner", { CornerRadius = UDim.new(0, radius) })
+end
+
+function Theme.stroke(color: Color3, thickness: number, transparency: number?): UIStroke
+	return make("UIStroke", {
+		Color = color,
+		Thickness = thickness,
+		Transparency = transparency or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Round,
+	})
+end
+
+function Theme.gradient(top: Color3, bottom: Color3, rotation: number?): any
+	return make("UIGradient", {
+		Rotation = rotation or 90,
+		Color = ColorSequence.new(top, bottom),
+	})
+end
+
+function Theme.label(props: { [string]: any }, outlineThickness: number?): TextLabel
+	local merged: { [string]: any } = {
+		BackgroundTransparency = 1,
+		Font = Theme.Font,
+		TextColor3 = Theme.Colors.Text,
+		TextScaled = true,
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+	return make("TextLabel", merged, {
+		Theme.stroke(Theme.Colors.Outline, outlineThickness or 2.5),
+	})
+end
+
+function Theme.dots(zindex: number?): ImageLabel?
+	if Theme.DotTexture == "" then
+		return nil
+	end
+	return make("ImageLabel", {
+		Name = "Dots",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Image = Theme.DotTexture,
+		ImageTransparency = Theme.DotTransparency,
+		ScaleType = Enum.ScaleType.Tile,
+		TileSize = Theme.DotTileSize,
+		ZIndex = zindex or 1,
+	})
+end
+
+function Theme.panel(props: { [string]: any }, borderColor: Color3?, children: { any }?): Frame
+	local merged: { [string]: any } = {
+		BackgroundColor3 = Theme.Colors.PanelBody,
+		BorderSizePixel = 0,
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+
+	local kids: { any } = {
+		Theme.corner(12),
+		Theme.stroke(borderColor or Theme.Colors.PanelBorder, 4),
+		Theme.gradient(Theme.Colors.PanelBody, Theme.Colors.PanelBodyDeep),
+	}
+	local dots = Theme.dots()
+	if dots then
+		table.insert(kids, dots)
+	end
+	if children then
+		for _, child in children do
+			table.insert(kids, child)
+		end
+	end
+	return make("Frame", merged, kids)
+end
+
+function Theme.pill(props: { [string]: any }, color: Color3, text: string): TextButton
+	local merged: { [string]: any } = {
+		BackgroundColor3 = color,
+		AutoButtonColor = false,
+		Text = "",
+		BorderSizePixel = 0,
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+	return make("TextButton", merged, {
+		Theme.corner(8),
+		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 205)),
+		Theme.stroke(Theme.Colors.Outline, 2.5),
+		Theme.label({
+			Name = "Label",
+			Size = UDim2.fromScale(1, 1),
+			Text = text,
+		}, 3),
+	})
+end
+
+function Theme.searchIcon(props: { [string]: any }): Frame
+	local merged: { [string]: any } = {
+		Name = "SearchIcon",
+		BackgroundTransparency = 1,
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+	return make("Frame", merged, {
+		make("Frame", {
+			Name = "Ring",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.42, 0.42),
+			Size = UDim2.fromScale(0.62, 0.62),
+			BackgroundTransparency = 1,
+		}, {
+			Theme.corner(999),
+			Theme.stroke(Theme.Colors.TextDim, 2.5),
+		}),
+		make("Frame", {
+			Name = "Handle",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.74, 0.76),
+			Size = UDim2.fromScale(0.3, 0.11),
+			Rotation = 45,
+			BackgroundColor3 = Theme.Colors.TextDim,
+			BorderSizePixel = 0,
+		}, { Theme.corner(999) }),
+	})
+end
+
+function Theme.rarityBackdrop(color: Color3): (Color3, Color3)
+	local black = Color3.new(0, 0, 0)
+	return color:Lerp(black, 0.42), color:Lerp(black, 0.76)
+end
+
+function Theme.slotFrame(props: { [string]: any }, color: Color3, children: { any }?): Frame
+	local top, bottom = Theme.rarityBackdrop(color)
+	local merged: { [string]: any } = {
+		BackgroundColor3 = top,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+
+	local kids: { any } = {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(color, 3),
+	}
+	local dots = Theme.dots()
+	if dots then
+		table.insert(kids, dots)
+	end
+	if children then
+		for _, child in children do
+			table.insert(kids, child)
+		end
+	end
+	return Theme.make("Frame", merged, kids)
+end
+
+function Theme.iconFor(name: string, icon: string, color: Color3, props: { [string]: any }): GuiObject
+	if icon ~= "" then
+		local merged: { [string]: any } = {
+			Name = "Icon",
+			BackgroundTransparency = 1,
+			Image = icon,
+			ScaleType = Enum.ScaleType.Fit,
+		}
+		for key, value in props do
+			merged[key] = value
+		end
+		return Theme.make("ImageLabel", merged)
+	end
+
+	local merged: { [string]: any } = {
+		Name = "Icon",
+		Text = string.upper(string.sub(name, 1, 1)),
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.45),
+	}
+	for key, value in props do
+		merged[key] = value
+	end
+	return Theme.label(merged, 3)
+end
+
+function Theme.scaleFor(viewportY: number): number
+	return math.clamp(viewportY / 900, 0.62, 1.3)
+end
+
+return Theme
+
+
+==============================================================================
+ServerScriptService > CardSystem (Script) > Inventory (ModuleScript)
+==============================================================================
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+
+local SAVE_ENABLED = true
+local STORE_NAME = "CardInventory_v2"
+local LOAD_RETRIES = 3
+
+export type Record = {
+	Counts: { [string]: number },
+	Equipped: { [string]: string },
+	Pity: number,
+	Rolls: number,
+}
+
+export type Snapshot = {
+	Counts: { [string]: number },
+	Equipped: { string | boolean },
+	Rolls: number,
+}
+
+local Inventory = {}
+
+local store: DataStore? = nil
+local storeWarned = false
+local records: { [Player]: Record } = {}
+
+if SAVE_ENABLED then
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = result
+	else
+		warn(`[CardSystem] DataStore unavailable, profiles are session only: {result}`)
+	end
+end
+
+local function emptyRecord(): Record
+	return { Counts = {}, Equipped = {}, Pity = 0, Rolls = 0 }
+end
+
+local function sanitise(raw: any): Record
+	local record = emptyRecord()
+	if typeof(raw) ~= "table" then
+		return record
+	end
+
+	if typeof(raw.Counts) == "table" then
+		for cardId, count in raw.Counts do
+
+			if typeof(cardId) == "string" and typeof(count) == "number" and Cards.get(cardId) then
+				record.Counts[cardId] = math.max(0, math.floor(count))
+			end
+		end
+	end
+
+	if typeof(raw.Equipped) == "table" then
+		for slotKey, cardId in raw.Equipped do
+			local slot = tonumber(slotKey)
+			if
+				slot
+				and slot == math.floor(slot)
+				and slot >= 1
+				and slot <= Config.Hotbar.Slots
+				and typeof(cardId) == "string"
+				and Cards.get(cardId)
+				and (record.Counts[cardId] or 0) > 0
+			then
+				record.Equipped[tostring(slot)] = cardId
+			end
+		end
+	end
+
+	for _, key in { "Pity", "Rolls" } do
+		if typeof(raw[key]) == "number" then
+			(record :: any)[key] = math.max(0, math.floor(raw[key]))
+		end
+	end
+	return record
+end
+
+local function keyFor(player: Player): string
+	return `player_{player.UserId}`
+end
+
+local function totalCards(record: Record): number
+	local total = 0
+	for _, count in record.Counts do
+		total += count
+	end
+	return total
+end
+
+local function bestRarityName(record: Record): string
+	local bestRank, bestName = 0, "-"
+	for cardId, count in record.Counts do
+		local card = Cards.get(cardId)
+		if card and count > 0 then
+			local rarity = Rarities.get(card.Rarity)
+			if rarity.Rank > bestRank then
+				bestRank, bestName = rarity.Rank, rarity.Name
+			end
+		end
+	end
+	return bestName
+end
+
+local function refreshStats(player: Player)
+	local record = records[player]
+	local stats = player:FindFirstChild("leaderstats")
+	if not record or not stats then
+		return
+	end
+
+	local cardsStat = stats:FindFirstChild("Cards") :: IntValue?
+	if cardsStat then
+		cardsStat.Value = totalCards(record)
+	end
+	local bestStat = stats:FindFirstChild("Best") :: StringValue?
+	if bestStat then
+		bestStat.Value = bestRarityName(record)
+	end
+end
+
+function Inventory.snapshot(player: Player): Snapshot?
+	local record = records[player]
+	if not record then
+		return nil
+	end
+
+	local counts = {}
+	for cardId, count in record.Counts do
+		counts[cardId] = count
+	end
+
+	local equipped: { string | boolean } = {}
+	for slot = 1, Config.Hotbar.Slots do
+		equipped[slot] = record.Equipped[tostring(slot)] or false
+	end
+
+	return {
+		Counts = counts,
+		Equipped = equipped,
+		Rolls = record.Rolls,
+	}
+end
+
+function Inventory.load(player: Player)
+	local record = emptyRecord()
+
+	if store then
+		for attempt = 1, LOAD_RETRIES do
+			local ok, result = pcall(function()
+				return (store :: DataStore):GetAsync(keyFor(player))
+			end)
+			if ok then
+				record = sanitise(result)
+				break
+			end
+			if attempt == LOAD_RETRIES then
+				if not storeWarned then
+					storeWarned = true
+					warn(`[CardSystem] profile load failed for {player.Name}: {result}`)
+				end
+			else
+				task.wait(attempt)
+			end
+		end
+	end
+
+	if not player:IsDescendantOf(Players) then
+		return
+	end
+
+	records[player] = record
+
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+
+	local cardsStat = Instance.new("IntValue")
+	cardsStat.Name = "Cards"
+	cardsStat.Parent = stats
+
+	local bestStat = Instance.new("StringValue")
+	bestStat.Name = "Best"
+	bestStat.Parent = stats
+
+	stats.Parent = player
+	refreshStats(player)
+end
+
+function Inventory.save(player: Player)
+	local record = records[player]
+	if not record or not store then
+		return
+	end
+	local ok, err = pcall(function()
+		(store :: DataStore):SetAsync(keyFor(player), record)
+	end)
+	if not ok and not storeWarned then
+		storeWarned = true
+		warn(`[CardSystem] profile save failed for {player.Name}: {err}`)
+	end
+end
+
+function Inventory.release(player: Player)
+	Inventory.save(player)
+	records[player] = nil
+end
+
+function Inventory.get(player: Player): Record?
+	return records[player]
+end
+
+function Inventory.getPity(player: Player): number
+	local record = records[player]
+	return if record then record.Pity else 0
+end
+
+function Inventory.setPity(player: Player, value: number)
+	local record = records[player]
+	if record then
+		record.Pity = value
+		record.Rolls += 1
+	end
+end
+
+function Inventory.owns(player: Player, cardId: string): boolean
+	local record = records[player]
+	return record ~= nil and (record.Counts[cardId] or 0) > 0
+end
+
+function Inventory.award(player: Player, cardId: string): boolean
+	local record = records[player]
+	if not record or not Cards.get(cardId) then
+		return false
+	end
+
+	record.Counts[cardId] = (record.Counts[cardId] or 0) + 1
+	refreshStats(player)
+	return true
+end
+
+function Inventory.equip(player: Player, slot: number, cardId: string?): (boolean, string?)
+	local record = records[player]
+	if not record then
+		return false, "Profile still loading"
+	end
+	if slot ~= math.floor(slot) or slot < 1 or slot > Config.Hotbar.Slots then
+		return false, "No such slot"
+	end
+
+	if cardId == nil then
+		record.Equipped[tostring(slot)] = nil
+		return true, nil
+	end
+
+	if not Cards.get(cardId) then
+		return false, "Unknown card"
+	end
+	if (record.Counts[cardId] or 0) <= 0 then
+		return false, "You do not own that"
+	end
+
+	for otherSlot, otherCard in record.Equipped do
+		if otherCard == cardId then
+			record.Equipped[otherSlot] = nil
+		end
+	end
+	record.Equipped[tostring(slot)] = cardId
+	return true, nil
+end
+
+function Inventory.firstFreeSlot(player: Player): number?
+	local record = records[player]
+	if not record then
+		return nil
+	end
+	for slot = 1, Config.Hotbar.Slots do
+		if record.Equipped[tostring(slot)] == nil then
+			return slot
+		end
+	end
+	return nil
+end
+
+function Inventory.bindShutdown()
+	game:BindToClose(function()
+		if RunService:IsStudio() then
+			return
+		end
+		for _, player in Players:GetPlayers() do
+			Inventory.save(player)
+		end
+		task.wait(1)
+	end)
+end
+
+return Inventory
+
+
+==============================================================================
+ServerScriptService > CardSystem (Script)
+==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local RollLogic = require(CardSystem:WaitForChild("RollLogic"))
+local Remotes = require(CardSystem:WaitForChild("Remotes")).get()
+
+local Inventory = require(script:WaitForChild("Inventory"))
+
+type PendingRoll = {
+	Id: number,
+	CardIds: { string },
+}
+
+local rng = Random.new()
+local pending: { [Player]: PendingRoll } = {}
+local nextRollAt: { [Player]: number } = {}
+local nextRollId = 0
+
+local function sync(player: Player)
+	local snapshot = Inventory.snapshot(player)
+	if snapshot then
+		Remotes.ProfileSync:FireClient(player, snapshot)
+	end
+end
+
+local function reject(player: Player, reason: string, retryAfter: number?)
+	Remotes.RollRejected:FireClient(player, reason, retryAfter or 0)
+end
+
+local function onRequestRoll(player: Player)
+	if not Inventory.get(player) then
+		reject(player, "Still loading your profile, try again.")
+		return
+	end
+
+	if pending[player] then
+		reject(player, "Pick a card first.")
+		return
+	end
+
+	local now = os.clock()
+	local readyAt = nextRollAt[player] or 0
+	if now < readyAt then
+		reject(player, "Rolling too fast.", readyAt - now)
+		return
+	end
+
+	nextRollAt[player] = now + Config.RollCooldown
+
+	local hand, newPity = RollLogic.rollHand(rng, Inventory.getPity(player))
+	Inventory.setPity(player, newPity)
+
+	nextRollId += 1
+	local cardIds = {}
+	for _, card in hand do
+		table.insert(cardIds, card.Id)
+	end
+
+	pending[player] = { Id = nextRollId, CardIds = cardIds }
+	Remotes.RollResult:FireClient(player, nextRollId, cardIds)
+end
+
+local function onSelectCard(player: Player, rollId: any, slot: any)
+	local roll = pending[player]
+	local function refuse()
+		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+	end
+
+	if not roll then
+		refuse()
+		return
+	end
+	if typeof(rollId) ~= "number" or rollId ~= roll.Id then
+		refuse()
+		return
+	end
+	if typeof(slot) ~= "number" or slot ~= math.floor(slot) or slot < 1 or slot > #roll.CardIds then
+		refuse()
+		return
+	end
+
+	local cardId = roll.CardIds[slot]
+	pending[player] = nil
+	nextRollAt[player] = os.clock() + Config.RollCooldown
+
+	if not Inventory.award(player, cardId) then
+		warn(`[CardSystem] could not award "{cardId}" to {player.Name}`)
+		refuse()
+		return
+	end
+
+	Remotes.SelectionResult:FireClient(player, true, cardId, slot)
+	sync(player)
+end
+
+local function onEquipCard(player: Player, slot: any, cardId: any)
+	if typeof(slot) ~= "number" then
+		return
+	end
+	if cardId ~= nil and typeof(cardId) ~= "string" then
+		return
+	end
+
+	local ok, reason = Inventory.equip(player, slot, cardId)
+	if not ok then
+		Remotes.Notice:FireClient(player, reason or "Could not equip that", true)
+		return
+	end
+	sync(player)
+end
+
+local function onPlayerAdded(player: Player)
+	Inventory.load(player)
+	sync(player)
+end
+
+local function onPlayerRemoving(player: Player)
+	pending[player] = nil
+	nextRollAt[player] = nil
+	Inventory.release(player)
+end
+
+Remotes.RequestRoll.OnServerEvent:Connect(onRequestRoll)
+Remotes.SelectCard.OnServerEvent:Connect(onSelectCard)
+Remotes.EquipCard.OnServerEvent:Connect(onEquipCard)
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+
+Inventory.bindShutdown()
+
+print(`[CardSystem] ready - {#Cards.List} cards, {Config.CardsPerRoll} per roll`)
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > CardVisual (ModuleScript)
+==============================================================================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+type Card = Cards.Card
+
+local BACKDROP = Color3.fromRGB(16, 17, 22)
+
+local function clamp01(n: number): number
+	return math.clamp(n, 0, 1)
+end
+
+local function easeOutCubic(t: number): number
+	return 1 - (1 - t) ^ 3
+end
+
+local function easeOutBack(t: number): number
+	local c1, c3 = 1.70158, 2.70158
+	return 1 + c3 * (t - 1) ^ 3 + c1 * (t - 1) ^ 2
+end
+
+local function easeInOutCubic(t: number): number
+	return if t < 0.5 then 4 * t ^ 3 else 1 - (-2 * t + 2) ^ 3 / 2
+end
+
+local function lerp(a: number, b: number, t: number): number
+	return a + (b - a) * t
+end
+
+local make = Theme.make
+
+local function buildFront(card: Card, rarity: Rarities.Rarity): CanvasGroup
+	local top, bottom = Theme.rarityBackdrop(rarity.Color)
+
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(rarity.Color, 7),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
+	end
+
+	table.insert(
+		children,
+		make("Frame", {
+			Name = "Band",
+			BackgroundColor3 = rarity.Color:Lerp(Color3.new(0, 0, 0), 0.22),
+			BorderSizePixel = 0,
+			Size = UDim2.fromScale(1, 0.44),
+		}, {
+			Theme.gradient(
+				rarity.Color:Lerp(Color3.new(1, 1, 1), 0.15),
+				rarity.Color:Lerp(Color3.new(0, 0, 0), 0.45)
+			),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.05),
+			Size = UDim2.fromScale(0.66, 0.34),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
+			Name = "CardName",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.45),
+			Size = UDim2.fromScale(0.9, 0.1),
+			Text = card.Name,
+		}, 4)
+	)
+
+	table.insert(
+		children,
+		Theme.label({
+			Name = "RarityLabel",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.56),
+			Size = UDim2.fromScale(0.82, 0.075),
+			Text = rarity.Name,
+			TextColor3 = rarity.TextColor,
+		}, 4)
+	)
+
+	table.insert(
+		children,
+		make("Frame", {
+			Name = "Divider",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.65),
+			Size = UDim2.fromScale(0.62, 0.008),
+			BackgroundColor3 = rarity.Color,
+			BorderSizePixel = 0,
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
+			Name = "Flavor",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.675),
+			Size = UDim2.fromScale(0.84, 0.15),
+			Text = card.Flavor,
+			TextColor3 = Color3.fromRGB(236, 240, 248),
+			TextWrapped = true,
+			TextScaled = false,
+			TextSize = 34,
+		}, 3)
+	)
+
+	table.insert(
+		children,
+		make("Frame", {
+			Name = "Footer",
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.fromScale(0.5, 0.96),
+			Size = UDim2.fromScale(0.76, 0.085),
+			BackgroundColor3 = Color3.fromRGB(10, 11, 15),
+			BorderSizePixel = 0,
+		}, {
+			Theme.corner(999),
+			Theme.stroke(rarity.Color, 3),
+			Theme.label({
+				Name = "Prompt",
+				Size = UDim2.fromScale(1, 1),
+				Text = "Click to Select",
+			}, 3),
+		})
+	)
+
+	return make("CanvasGroup", {
+		Name = "Face",
+		BackgroundColor3 = top,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		GroupTransparency = 1,
+		ClipsDescendants = true,
+	}, children)
+end
+
+local function buildBack(): CanvasGroup
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(Color3.fromRGB(40, 43, 56), Color3.fromRGB(13, 14, 19)),
+		Theme.stroke(Color3.fromRGB(120, 128, 150), 6),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
+	end
+
+	table.insert(
+		children,
+		make("Frame", {
+			Name = "Emblem",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.36, 0.26),
+			Rotation = 45,
+			BackgroundColor3 = Color3.fromRGB(140, 148, 172),
+			BackgroundTransparency = 0.55,
+			BorderSizePixel = 0,
+		}, {
+			Theme.stroke(Color3.fromRGB(190, 198, 220), 3),
+		})
+	)
+
+	return make("CanvasGroup", {
+		Name = "Back",
+		BackgroundColor3 = Color3.fromRGB(22, 23, 30),
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		GroupTransparency = 1,
+		ClipsDescendants = true,
+	}, children)
+end
+
+local CardVisual = {}
+CardVisual.__index = CardVisual
+
+export type CardVisual = typeof(setmetatable(
+	{} :: {
+		Card: Card,
+		Rarity: Rarities.Rarity,
+		Slot: number,
+		Part: BasePart,
+		BaseCFrame: CFrame,
+		StartTime: number,
+		EnterDelay: number,
+		FlipDelay: number,
+		State: string,
+		ExitStart: number,
+		ExitMode: string,
+		Revealed: boolean,
+		Tilt: Vector2,
+		Hover: number,
+		OnRevealed: ((slot: number) -> ())?,
+		Front: CanvasGroup,
+		BackFace: CanvasGroup,
+		Light: PointLight,
+		Glow: Highlight,
+		Sparks: ParticleEmitter,
+	},
+	CardVisual
+))
+
+function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: Instance): CardVisual
+	local rarity = Rarities.get(card.Rarity)
+
+	local part = make("Part", {
+		Name = `Card_{card.Id}`,
+		Anchored = true,
+		CanCollide = false,
+		CanTouch = false,
+		CanQuery = true,
+		CastShadow = false,
+		Material = Enum.Material.SmoothPlastic,
+		Color = BACKDROP,
+		Transparency = 1,
+		Size = Config.CardSize,
+		CFrame = baseCFrame,
+	}) :: BasePart
+
+	local front = buildFront(card, rarity)
+	local back = buildBack()
+
+	make("SurfaceGui", {
+		Name = "FrontGui",
+		Face = Enum.NormalId.Front,
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = Config.PixelsPerStud,
+		LightInfluence = 0,
+		Brightness = 1.9,
+		MaxDistance = 250,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Parent = part,
+	}, { front })
+
+	make("SurfaceGui", {
+		Name = "BackGui",
+		Face = Enum.NormalId.Back,
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = Config.PixelsPerStud,
+		LightInfluence = 0,
+		Brightness = 1.6,
+		MaxDistance = 250,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Parent = part,
+	}, { back })
+
+	local light = make("PointLight", {
+		Color = rarity.GlowColor,
+		Brightness = 0,
+		Range = 10,
+		Shadows = false,
+		Parent = part,
+	}) :: PointLight
+
+	local glow = make("Highlight", {
+		Name = "Hover",
+		Adornee = part,
+		FillTransparency = 1,
+		OutlineColor = rarity.GlowColor,
+		OutlineTransparency = 1,
+		DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+		Parent = part,
+	}) :: Highlight
+
+	local attachment = make("Attachment", { Name = "SparkPoint", Parent = part }) :: Attachment
+	local sparks = make("ParticleEmitter", {
+		Name = "Sparks",
+		Enabled = false,
+		Color = ColorSequence.new(rarity.GlowColor),
+		LightEmission = 1,
+		Lifetime = NumberRange.new(0.5, 1.1),
+		Speed = NumberRange.new(6, 12),
+		SpreadAngle = Vector2.new(180, 180),
+		Rate = 0,
+		Rotation = NumberRange.new(0, 360),
+		Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.45),
+			NumberSequenceKeypoint.new(1, 0),
+		}),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.1),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = attachment,
+	}) :: ParticleEmitter
+
+	part.Parent = parent
+
+	local self = setmetatable({
+		Card = card,
+		Rarity = rarity,
+		Slot = slot,
+		Part = part,
+		BaseCFrame = baseCFrame,
+		StartTime = os.clock(),
+		EnterDelay = (slot - 1) * Config.EnterStagger,
+		FlipDelay = Config.EnterDuration + (slot - 1) * Config.FlipStagger + rarity.RevealDelay,
+		State = "entering",
+		ExitStart = 0,
+		ExitMode = "discarded",
+		Revealed = false,
+		Tilt = Vector2.zero,
+		Hover = 0,
+		OnRevealed = nil,
+		Front = front,
+		BackFace = back,
+		Light = light,
+		Glow = glow,
+		Sparks = sparks,
+	}, CardVisual)
+
+	return (self :: any) :: CardVisual
+end
+
+function CardVisual.isInteractive(self: CardVisual): boolean
+	return self.Revealed and self.State ~= "exiting"
+end
+
+function CardVisual.beginExit(self: CardVisual, mode: string)
+	if self.State == "exiting" then
+		return
+	end
+	self.State = "exiting"
+	self.ExitMode = mode
+	self.ExitStart = os.clock()
+end
+
+function CardVisual.isFinished(self: CardVisual): boolean
+	return self.State == "exiting" and os.clock() - self.ExitStart > Config.ExitDuration
+end
+
+function CardVisual.update(self: CardVisual, dt: number, tiltTarget: Vector2, hovered: boolean)
+	local now = os.clock()
+	local elapsed = now - self.StartTime
+
+	local enter = clamp01((elapsed - self.EnterDelay) / Config.EnterDuration)
+	local enterEase = easeOutBack(enter)
+	local flip = clamp01((elapsed - self.FlipDelay) / Config.FlipDuration)
+	local flipEase = easeInOutCubic(flip)
+
+	if flip >= 1 and not self.Revealed then
+		self.Revealed = true
+		if self.Rarity.Sparkle then
+			self.Sparks:Emit(28 + self.Rarity.Rank * 8)
+		end
+		if self.OnRevealed then
+			(self.OnRevealed :: any)(self.Slot)
+		end
+	end
+
+	local interactive = self.Revealed and self.State ~= "exiting"
+	local wantHover = if interactive and hovered then 1 else 0
+	local smoothing = clamp01(dt * Config.TiltSmoothing)
+	local tiltWeight = if interactive then 1 else 0
+	self.Tilt = self.Tilt:Lerp(tiltTarget * tiltWeight, smoothing)
+	self.Hover = lerp(self.Hover, wantHover, smoothing)
+
+	local scale = lerp(Config.EnterScale, 1, math.min(enterEase, 1))
+	scale *= lerp(1, Config.HoverScale, self.Hover)
+
+	local rise = (1 - easeOutCubic(enter)) * -Config.EnterDrop + self.Hover * Config.HoverLift
+	local alpha = 1 - enter
+	local pushToCamera = self.Hover * Config.HoverPop
+
+	if self.State == "exiting" then
+		local exit = clamp01((now - self.ExitStart) / Config.ExitDuration)
+		local exitEase = easeOutCubic(exit)
+		alpha = math.max(alpha, exitEase)
+		if self.ExitMode == "chosen" then
+			pushToCamera += exitEase * 5
+			scale *= lerp(1, 1.35, exitEase)
+		else
+			rise -= exitEase * 3
+			scale *= lerp(1, 0.85, exitEase)
+		end
+	end
+
+	local flipAngle = math.pi * (1 - flipEase)
+
+	local cframe = CFrame.new(0, rise, 0)
+		* self.BaseCFrame
+		* CFrame.Angles(0, flipAngle, 0)
+		* CFrame.Angles(self.Tilt.Y * Config.MaxTilt, self.Tilt.X * Config.MaxTilt, 0)
+		* CFrame.new(0, 0, -pushToCamera)
+
+	self.Part.CFrame = cframe
+	self.Part.Size = Config.CardSize * scale
+	self.Part.Transparency = alpha
+
+	self.Front.GroupTransparency = alpha
+	self.BackFace.GroupTransparency = alpha
+
+	self.Light.Brightness = self.Rarity.GlowBrightness * flipEase * (1 - alpha)
+	self.Glow.OutlineTransparency = 1 - self.Hover * 0.85
+end
+
+function CardVisual.destroy(self: CardVisual)
+	self.Part:Destroy()
+end
+
+return CardVisual
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > Hotbar (ModuleScript)
+==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local L = Config.Layout
+
+type SlotViews = {
+	Button: TextButton,
+	Surface: Frame,
+	Stroke: UIStroke?,
+	Art: ImageLabel?,
+	Icon: GuiObject?,
+	KeyFrame: Frame,
+	NameLabel: TextLabel,
+	CountLabel: TextLabel,
+	Content: Frame,
+}
+
+local Hotbar = {}
+Hotbar.__index = Hotbar
+
+export type Hotbar = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		Scale: UIScale,
+		Slots: { SlotViews },
+		Selected: number,
+		OnSlotActivated: ((slot: number, cardId: string?) -> ())?,
+	},
+	Hotbar
+))
+
+local function buildSlot(index: number, parent: Instance): SlotViews
+	local size = L.HotbarSlot
+	local artId = Theme.Images.HotbarSlots[index] or ""
+	local hasArt = artId ~= ""
+
+	local button = make("TextButton", {
+		Name = `Slot{index}`,
+		LayoutOrder = index,
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}) :: TextButton
+
+	local surface: Frame
+	local stroke: UIStroke? = nil
+	local art: ImageLabel? = nil
+
+	if hasArt then
+		surface = make("Frame", {
+			Name = "Surface",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+		}) :: Frame
+
+		art = make("ImageLabel", {
+			Name = "Art",
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.fromScale(0.5, 1),
+			Size = UDim2.fromScale(
+				Theme.SlotArt.WidthRatio,
+				1 / math.max(Theme.SlotArt.BodyHeightRatio, 0.01)
+			),
+			Image = artId,
+			ZIndex = 0,
+			Parent = surface,
+		}) :: ImageLabel
+	else
+		surface = Theme.slotFrame({
+			Name = "Surface",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+		}, Theme.Colors.SlotEmpty) :: Frame
+		stroke = surface:FindFirstChildOfClass("UIStroke")
+	end
+	surface.Parent = button
+
+	local content = make("Frame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Visible = false,
+		Parent = surface,
+	}) :: Frame
+
+	local nameLabel = Theme.label({
+		Name = "ItemName",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.98),
+		Size = UDim2.fromScale(0.94, 0.19),
+		Text = "",
+		Parent = content,
+	}, 3)
+
+	local countLabel = Theme.label({
+		Name = "Count",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.8),
+		Size = UDim2.fromScale(0.9, 0.2),
+		Text = "",
+		TextColor3 = Theme.Colors.Count,
+		Parent = content,
+	}, 3)
+
+	local keyFrame = make("Frame", {
+		Name = "KeyBadge",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(0.05, 0.05),
+		Size = UDim2.fromScale(0.28, 0.28),
+		BackgroundColor3 = Color3.fromRGB(12, 13, 17),
+		BackgroundTransparency = 0.15,
+		BorderSizePixel = 0,
+		Visible = not hasArt,
+		Parent = surface,
+	}, {
+		Theme.corner(6),
+		Theme.stroke(Theme.Colors.Outline, 2),
+	})
+
+	Theme.label({
+		Name = "Key",
+		Size = UDim2.fromScale(1, 1),
+		Text = tostring(index),
+		Parent = keyFrame,
+	}, 2)
+
+	return {
+		Button = button,
+		Surface = surface,
+		Stroke = stroke,
+		Art = art,
+		Icon = nil,
+		KeyFrame = keyFrame,
+		NameLabel = nameLabel,
+		CountLabel = countLabel,
+		Content = content,
+	}
+end
+
+function Hotbar.new(): Hotbar
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = make("ScreenGui", {
+		Name = "CardHotbar",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 8,
+	}) :: ScreenGui
+
+	local rowWidth = Config.Hotbar.Slots * L.HotbarSlot + (Config.Hotbar.Slots - 1) * L.HotbarGap
+
+	local root = make("Frame", {
+		Name = "Root",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(rowWidth, L.HotbarBottom + L.HotbarSlot),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = root }) :: UIScale
+
+	local row = make("Frame", {
+		Name = "Slots",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -L.HotbarBottom),
+		Size = UDim2.fromOffset(rowWidth, L.HotbarSlot),
+		Parent = root,
+	}, {
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, L.HotbarGap),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local slots: { SlotViews } = {}
+	for index = 1, Config.Hotbar.Slots do
+		slots[index] = buildSlot(index, row)
+	end
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		Scale = scale,
+		Slots = slots,
+		Selected = 1,
+		OnSlotActivated = nil,
+	}, Hotbar)
+
+	for index, slot in slots do
+		slot.Button.MouseButton1Click:Connect(function()
+			self:activate(index)
+		end)
+		slot.Button.MouseEnter:Connect(function()
+			TweenService:Create(slot.Surface, TweenInfo.new(0.12), {
+				Size = UDim2.fromScale(1.06, 1.06),
+			}):Play()
+		end)
+		slot.Button.MouseLeave:Connect(function()
+			TweenService:Create(slot.Surface, TweenInfo.new(0.12), {
+				Size = UDim2.fromScale(1, 1),
+			}):Play()
+		end)
+	end
+
+	self:refresh()
+	return (self :: any) :: Hotbar
+end
+
+function Hotbar.activate(self: Hotbar, index: number)
+	self.Selected = index
+	self:refresh()
+	if self.OnSlotActivated then
+		(self.OnSlotActivated :: any)(index, Profile.equippedAt(index))
+	end
+end
+
+function Hotbar.setScale(self: Hotbar, scale: number)
+	self.Scale.Scale = scale
+end
+
+function Hotbar.refresh(self: Hotbar)
+	for index, views in self.Slots do
+		local cardId = Profile.equippedAt(index)
+		local card = if cardId then Cards.get(cardId) else nil
+
+		if views.Icon then
+			views.Icon:Destroy()
+			views.Icon = nil
+		end
+
+		local accent = if card then Rarities.get(card.Rarity).Color else Color3.fromRGB(90, 96, 112)
+
+		if card then
+			views.Content.Visible = true
+			views.NameLabel.Text = card.Name
+			views.CountLabel.Text = `x{Profile.count(card.Id)}`
+
+			views.Icon = Theme.iconFor(card.Name, card.Icon, accent, {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.fromScale(0.5, 0.14),
+				Size = UDim2.fromScale(0.62, 0.44),
+				Parent = views.Surface,
+			})
+		else
+			views.Content.Visible = false
+		end
+
+		local selected = index == self.Selected
+
+		local art = views.Art
+		if art then
+
+			art.ImageColor3 = if Theme.SlotArt.Tint and card then accent else Color3.new(1, 1, 1)
+
+			art.ImageTransparency = if selected then 0 else 0.12
+		else
+			local stroke = views.Stroke
+			if stroke then
+				stroke.Color = accent
+				stroke.Transparency = if card then 0 else 0.2
+				stroke.Thickness = if selected then 5 else 3
+			end
+			views.Surface.BackgroundColor3 = if card
+				then select(1, Theme.rarityBackdrop(accent))
+				else Theme.Colors.SlotEmpty
+		end
+
+		views.Surface.Position = if selected
+			then UDim2.new(0.5, 0, 0.5, -4)
+			else UDim2.fromScale(0.5, 0.5)
+	end
+end
+
+return Hotbar
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > InventoryUI (ModuleScript)
+==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Categories = require(CardSystem:WaitForChild("Categories"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local INV = Config.Inventory
+
+local function panelWidth(): number
+	return INV.Columns * INV.SlotSize + (INV.Columns - 1) * INV.SlotGap + INV.PanelPadding * 2
+end
+
+local function gridHeight(): number
+	return INV.VisibleRows * INV.SlotSize + (INV.VisibleRows - 1) * INV.SlotGap
+end
+
+type SlotViews = {
+	Button: TextButton,
+	Surface: Frame,
+	Stroke: UIStroke,
+	Count: TextLabel,
+	Icon: GuiObject?,
+	CardId: string?,
+}
+
+local InventoryUI = {}
+InventoryUI.__index = InventoryUI
+
+export type InventoryUI = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		Scale: UIScale,
+		Root: Frame,
+		Grid: ScrollingFrame,
+		Search: TextBox,
+		Tabs: { [string]: TextButton },
+		Slots: { SlotViews },
+		EmptyLabel: TextLabel,
+		Tooltip: Frame,
+		TipName: TextLabel,
+		TipRarity: TextLabel,
+		TipBody: TextLabel,
+		TipOwned: TextLabel,
+		ViewButton: TextButton,
+		EquipButton: TextButton,
+		Category: string,
+		Query: string,
+		HoveredCard: string?,
+		Open: boolean,
+		OnView: ((cardId: string) -> ())?,
+		OnEquip: ((cardId: string) -> ())?,
+		OnUnequip: ((cardId: string) -> ())?,
+		OnClosed: (() -> ())?,
+	},
+	InventoryUI
+))
+
+local function buildHeader(parent: Instance): Frame
+	local header = make("Frame", {
+		Name = "Header",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, -18),
+		Size = UDim2.new(1, 0, 0, 44),
+		Parent = parent,
+	})
+
+	local banner = make("Frame", {
+		Name = "Banner",
+		BackgroundColor3 = Theme.Colors.HeaderLight,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(-6, 0),
+		Size = UDim2.new(0, 250, 1, 0),
+		Rotation = -1.2,
+		Parent = header,
+	}, {
+		Theme.corner(8),
+		Theme.gradient(Theme.Colors.HeaderLight, Theme.Colors.HeaderDark),
+		Theme.stroke(Theme.Colors.Outline, 2.5),
+	})
+
+	Theme.label({
+		Name = "Title",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.06, 0.5),
+		Size = UDim2.fromScale(0.9, 0.62),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "Inventory",
+		Parent = banner,
+	}, 3.5)
+
+	for index = 1, 3 do
+		make("Frame", {
+			Name = `Shard{index}`,
+			BackgroundColor3 = Theme.Colors.HeaderLight,
+			BorderSizePixel = 0,
+			Rotation = -22,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 244 + index * 26, 0.5, 0),
+			Size = UDim2.fromOffset(14, 30),
+			Parent = header,
+		}, {
+			Theme.corner(3),
+			Theme.gradient(Theme.Colors.HeaderLight, Theme.Colors.HeaderDark),
+			Theme.stroke(Theme.Colors.Outline, 2),
+		})
+	end
+
+	return header
+end
+
+local function buildCloseButton(parent: Instance): TextButton
+	local button = make("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -2, 0, -6),
+		Size = UDim2.fromOffset(46, 46),
+		BackgroundColor3 = Theme.Colors.Close,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}, {
+		Theme.corner(999),
+		Theme.stroke(Theme.Colors.CloseDark, 3),
+		Theme.label({
+			Name = "X",
+			Size = UDim2.fromScale(0.72, 0.72),
+			Position = UDim2.fromScale(0.14, 0.14),
+			Text = "X",
+		}, 3),
+	}) :: TextButton
+	return button
+end
+
+local function buildSlot(index: number, parent: Instance): SlotViews
+	local button = make("TextButton", {
+		Name = `Slot{index}`,
+		LayoutOrder = index,
+		Size = UDim2.fromOffset(INV.SlotSize, INV.SlotSize),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Visible = false,
+		Parent = parent,
+	}) :: TextButton
+
+	local surface = Theme.slotFrame({
+		Name = "Surface",
+		Size = UDim2.fromScale(1, 1),
+	}, Theme.Colors.SlotEmpty) :: Frame
+	surface.Parent = button
+
+	local count = Theme.label({
+		Name = "Count",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(0.96, 0.98),
+		Size = UDim2.fromScale(0.62, 0.26),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Theme.Colors.Count,
+		Text = "",
+		Parent = surface,
+	}, 3)
+
+	return {
+		Button = button,
+		Surface = surface,
+		Stroke = surface:FindFirstChildOfClass("UIStroke") :: UIStroke,
+		Count = count,
+		Icon = nil,
+		CardId = nil,
+	}
+end
+
+local function buildTooltip(parent: Instance): (Frame, TextLabel, TextLabel, TextLabel, TextLabel, TextButton, TextButton)
+	local tip = Theme.panel({
+		Name = "Tooltip",
+		Size = UDim2.fromOffset(230, 168),
+		Visible = false,
+		ZIndex = 50,
+		Parent = parent,
+	}, Color3.fromRGB(70, 74, 90))
+	tip.BackgroundTransparency = 0.05
+
+	local name = Theme.label({
+		Name = "ItemName",
+		Position = UDim2.fromOffset(12, 10),
+		Size = UDim2.new(1, -24, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2.5)
+
+	local rarity = Theme.label({
+		Name = "Rarity",
+		Position = UDim2.fromOffset(12, 32),
+		Size = UDim2.new(1, -24, 0, 16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 14,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local body = Theme.label({
+		Name = "Body",
+		Position = UDim2.fromOffset(12, 52),
+		Size = UDim2.new(1, -24, 0, 40),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		TextScaled = false,
+		TextSize = 14,
+		TextColor3 = Theme.Colors.TextDim,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local owned = Theme.label({
+		Name = "Owned",
+		Position = UDim2.fromOffset(12, 94),
+		Size = UDim2.new(1, -24, 0, 16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 14,
+		TextColor3 = Theme.Colors.Count,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local view = Theme.pill({
+		Name = "View",
+		Position = UDim2.fromOffset(12, 118),
+		Size = UDim2.fromOffset(96, 34),
+		ZIndex = 51,
+		Parent = tip,
+	}, Theme.Colors.Equip, "View")
+
+	local equip = Theme.pill({
+		Name = "Equip",
+		Position = UDim2.new(1, -108, 0, 118),
+		Size = UDim2.fromOffset(96, 34),
+		ZIndex = 51,
+		Parent = tip,
+	}, Theme.Colors.PanelBorder, "Equip")
+
+	return tip, name, rarity, body, owned, view, equip
+end
+
+function InventoryUI.new(): InventoryUI
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	local width = panelWidth()
+
+	local gui = make("ScreenGui", {
+		Name = "CardInventory",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 12,
+		Enabled = false,
+	}) :: ScreenGui
+
+	local tabHeight = 34
+	local headerRoom = 16
+	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
+
+	local searchHeight = 34
+	local searchGap = 46
+
+	local holder = make("Frame", {
+		Name = "Holder",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(width, searchHeight + searchGap + bodyHeight),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = holder }) :: UIScale
+
+	local searchBox = Theme.panel({
+		Name = "Search",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(width - 60, searchHeight),
+		BackgroundColor3 = Theme.Colors.Search,
+		Parent = holder,
+	}, Color3.fromRGB(58, 62, 76))
+
+	Theme.searchIcon({
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 10, 0.5, 0),
+		Size = UDim2.fromOffset(18, 18),
+		Parent = searchBox,
+	})
+
+	local search = make("TextBox", {
+		Name = "Input",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(36, 0),
+		Size = UDim2.new(1, -46, 1, 0),
+		Font = Theme.Font,
+		Text = "",
+		PlaceholderText = "Search..",
+		PlaceholderColor3 = Theme.Colors.TextDim,
+		TextColor3 = Theme.Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 16,
+		ClearTextOnFocus = false,
+		Parent = searchBox,
+	}) :: TextBox
+
+	local root = Theme.panel({
+		Name = "Panel",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, searchHeight + searchGap),
+		Size = UDim2.fromOffset(width, bodyHeight),
+		Parent = holder,
+	}) :: Frame
+
+	buildHeader(root)
+	local close = buildCloseButton(root)
+
+	local tabRow = make("Frame", {
+		Name = "Tabs",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(INV.PanelPadding, INV.PanelPadding + 16),
+		Size = UDim2.new(1, -INV.PanelPadding * 2, 0, tabHeight),
+		Parent = root,
+	}, {
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local tabCount = #Categories.List + 1
+	local tabWidth = math.floor((panelWidth() - INV.PanelPadding * 2 - (tabCount - 1) * 6) / tabCount)
+
+	local tabs: { [string]: TextButton } = {}
+	tabs[Categories.AllId] = Theme.pill({
+		Name = Categories.AllId,
+		LayoutOrder = 1,
+		Size = UDim2.fromOffset(tabWidth, tabHeight),
+		Parent = tabRow,
+	}, Categories.AllColor, "All")
+
+	for index, category in Categories.List do
+		tabs[category.Id] = Theme.pill({
+			Name = category.Id,
+			LayoutOrder = index + 1,
+			Size = UDim2.fromOffset(tabWidth, tabHeight),
+			Parent = tabRow,
+		}, category.Color, category.Name)
+	end
+
+	local grid = make("ScrollingFrame", {
+		Name = "Grid",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(INV.PanelPadding, INV.PanelPadding * 2 + tabHeight + 16),
+		Size = UDim2.new(1, -INV.PanelPadding * 2, 0, gridHeight()),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Theme.Colors.PanelBorder,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = root,
+	}, {
+		make("UIGridLayout", {
+			CellSize = UDim2.fromOffset(INV.SlotSize, INV.SlotSize),
+			CellPadding = UDim2.fromOffset(INV.SlotGap, INV.SlotGap),
+			FillDirectionMaxCells = INV.Columns,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	}) :: ScrollingFrame
+
+	local slots: { SlotViews } = {}
+	for index = 1, #Cards.List do
+		slots[index] = buildSlot(index, grid)
+	end
+
+	local empty = Theme.label({
+		Name = "Empty",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(360, 30),
+		TextScaled = false,
+		TextSize = 18,
+		TextColor3 = Theme.Colors.TextDim,
+		Text = "Nothing here yet - go roll some cards",
+		Visible = false,
+		Parent = root,
+	}, 2)
+
+	local tip, tipName, tipRarity, tipBody, tipOwned, viewButton, equipButton = buildTooltip(gui)
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		Scale = scale,
+		Root = root,
+		Grid = grid,
+		Search = search,
+		Tabs = tabs,
+		Slots = slots,
+		EmptyLabel = empty,
+		Tooltip = tip,
+		TipName = tipName,
+		TipRarity = tipRarity,
+		TipBody = tipBody,
+		TipOwned = tipOwned,
+		ViewButton = viewButton,
+		EquipButton = equipButton,
+		Category = Categories.AllId,
+		Query = "",
+		HoveredCard = nil,
+		Open = false,
+		OnView = nil,
+		OnEquip = nil,
+		OnUnequip = nil,
+		OnClosed = nil,
+	}, InventoryUI)
+
+	close.MouseButton1Click:Connect(function()
+		self:close()
+	end)
+
+	for id, button in tabs do
+		button.MouseButton1Click:Connect(function()
+			self.Category = id
+			self:refresh()
+		end)
+	end
+
+	search:GetPropertyChangedSignal("Text"):Connect(function()
+		self.Query = string.lower(search.Text)
+		self:refresh()
+	end)
+
+	for _, views in slots do
+		views.Button.MouseEnter:Connect(function()
+			if views.CardId then
+				self:showTooltip(views.CardId)
+			end
+		end)
+		views.Button.MouseLeave:Connect(function()
+			self:hideTooltip()
+		end)
+		views.Button.MouseButton1Click:Connect(function()
+			if views.CardId and self.OnView then
+				(self.OnView :: any)(views.CardId)
+			end
+		end)
+	end
+
+	viewButton.MouseButton1Click:Connect(function()
+		local cardId = self.HoveredCard
+		if cardId and self.OnView then
+			(self.OnView :: any)(cardId)
+		end
+	end)
+
+	equipButton.MouseButton1Click:Connect(function()
+		local cardId = self.HoveredCard
+		if not cardId then
+			return
+		end
+		if Profile.slotOf(cardId) then
+			if self.OnUnequip then
+				(self.OnUnequip :: any)(cardId)
+			end
+		elseif self.OnEquip then
+			(self.OnEquip :: any)(cardId)
+		end
+	end)
+
+	RunService.Heartbeat:Connect(function()
+		if self.Tooltip.Visible then
+			self:moveTooltip()
+		end
+	end)
+
+	return (self :: any) :: InventoryUI
+end
+
+function InventoryUI.setScale(self: InventoryUI, scale: number)
+	self.Scale.Scale = scale
+end
+
+function InventoryUI.showTooltip(self: InventoryUI, cardId: string)
+	local card = Cards.get(cardId)
+	if not card then
+		return
+	end
+	local rarity = Rarities.get(card.Rarity)
+
+	self.HoveredCard = cardId
+	self.TipName.Text = card.Name
+	self.TipRarity.Text = rarity.Name
+	self.TipRarity.TextColor3 = rarity.TextColor
+	self.TipBody.Text = card.Description
+	self.TipOwned.Text = `Owned: {Profile.count(cardId)}x`
+
+	local equipLabel = self.EquipButton:FindFirstChild("Label") :: TextLabel
+	equipLabel.Text = if Profile.slotOf(cardId) then "Unequip" else "Equip"
+
+	local stroke = self.Tooltip:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = rarity.Color
+	end
+
+	self.Tooltip.Visible = true
+	self:moveTooltip()
+end
+
+function InventoryUI.moveTooltip(self: InventoryUI)
+	if not self.Tooltip.Visible then
+		return
+	end
+	local mouse = UserInputService:GetMouseLocation()
+	local camera = workspace.CurrentCamera
+	local viewport = camera.ViewportSize
+	local size = self.Tooltip.AbsoluteSize
+
+	local x = mouse.X + 16
+	if x + size.X > viewport.X - 8 then
+		x = mouse.X - size.X - 16
+	end
+	local y = mouse.Y + 12
+	if y + size.Y > viewport.Y - 8 then
+		y = viewport.Y - size.Y - 8
+	end
+
+	self.Tooltip.Position = UDim2.fromOffset(x, y)
+end
+
+function InventoryUI.hideTooltip(self: InventoryUI)
+	self.Tooltip.Visible = false
+	self.HoveredCard = nil
+end
+
+function InventoryUI.refresh(self: InventoryUI)
+	for id, button in self.Tabs do
+		local active = id == self.Category
+		button.BackgroundTransparency = if active then 0 else 0.45
+		local stroke = button:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Thickness = if active then 3.5 else 2
+		end
+	end
+
+	local owned = Profile.ownedSorted(function(cardId: string): number
+		local card = Cards.get(cardId)
+		return if card then Rarities.get(card.Rarity).Rank else 0
+	end)
+
+	local shown = 0
+	for _, entry in owned do
+		local card = Cards.get(entry.Id)
+		if not card then
+			continue
+		end
+		if self.Category ~= Categories.AllId and card.Category ~= self.Category then
+			continue
+		end
+		if self.Query ~= "" and not string.find(string.lower(card.Name), self.Query, 1, true) then
+			continue
+		end
+
+		shown += 1
+		local views = self.Slots[shown]
+		if not views then
+			break
+		end
+
+		local rarity = Rarities.get(card.Rarity)
+		local top = select(1, Theme.rarityBackdrop(rarity.Color))
+
+		views.CardId = card.Id
+		views.Button.Visible = true
+		views.Button.LayoutOrder = shown
+		views.Surface.BackgroundColor3 = top
+		views.Stroke.Color = rarity.Color
+		views.Count.Text = `x{entry.Count}`
+
+		if views.Icon then
+			views.Icon:Destroy()
+		end
+		views.Icon = Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.44),
+			Size = UDim2.fromScale(0.6, 0.5),
+			Parent = views.Surface,
+		})
+	end
+
+	for index = shown + 1, #self.Slots do
+		local views = self.Slots[index]
+		views.Button.Visible = false
+		views.CardId = nil
+	end
+
+	self.EmptyLabel.Visible = shown == 0
+
+	if self.HoveredCard and not Profile.owns(self.HoveredCard) then
+		self:hideTooltip()
+	elseif self.HoveredCard then
+		self:showTooltip(self.HoveredCard)
+	end
+end
+
+function InventoryUI.open(self: InventoryUI)
+	self.Open = true
+	self.Gui.Enabled = true
+	self:refresh()
+
+	local scale = make("UIScale", { Scale = 0.9, Parent = self.Root }) :: UIScale
+	local tween = TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	})
+	tween.Completed:Connect(function()
+		scale:Destroy()
+	end)
+	tween:Play()
+end
+
+function InventoryUI.close(self: InventoryUI)
+	self.Open = false
+	self.Gui.Enabled = false
+	self:hideTooltip()
+	if self.OnClosed then
+		(self.OnClosed :: any)()
+	end
+end
+
+function InventoryUI.toggle(self: InventoryUI)
+	if self.Open then
+		self:close()
+	else
+		self:open()
+	end
+end
+
+return InventoryUI
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > Profile (ModuleScript)
+==============================================================================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Config = require(CardSystem:WaitForChild("Config"))
+
+export type Snapshot = {
+	Counts: { [string]: number },
+	Equipped: { string | boolean },
+	Rolls: number,
+}
+
+local Profile = {}
+
+local current: Snapshot = {
+	Counts = {},
+	Equipped = {},
+	Rolls = 0,
+}
+
+local listeners: { (Snapshot) -> () } = {}
+
+function Profile.get(): Snapshot
+	return current
+end
+
+function Profile.set(snapshot: Snapshot)
+	current = snapshot
+	for _, listener in listeners do
+		task.spawn(listener, snapshot)
+	end
+end
+
+function Profile.onChanged(listener: (Snapshot) -> ()): () -> ()
+	table.insert(listeners, listener)
+	return function()
+		local index = table.find(listeners, listener)
+		if index then
+			table.remove(listeners, index)
+		end
+	end
+end
+
+function Profile.count(cardId: string): number
+	return current.Counts[cardId] or 0
+end
+
+function Profile.owns(cardId: string): boolean
+	return Profile.count(cardId) > 0
+end
+
+function Profile.equippedAt(slot: number): string?
+	local value = current.Equipped[slot]
+	return if typeof(value) == "string" then value else nil
+end
+
+function Profile.slotOf(cardId: string): number?
+	for slot = 1, Config.Hotbar.Slots do
+		if Profile.equippedAt(slot) == cardId then
+			return slot
+		end
+	end
+	return nil
+end
+
+function Profile.ownedSorted(rank: (string) -> number): { { Id: string, Count: number } }
+	local out = {}
+	for cardId, count in current.Counts do
+		if count > 0 then
+			table.insert(out, { Id = cardId, Count = count })
+		end
+	end
+	table.sort(out, function(a, b)
+		local rankA, rankB = rank(a.Id), rank(b.Id)
+		if rankA ~= rankB then
+			return rankA > rankB
+		end
+		return a.Id < b.Id
+	end)
+	return out
+end
+
+return Profile
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > RollUI (ModuleScript)
+==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local make = Theme.make
+local L = Config.Layout
+
+local IDLE_COLOR = Color3.fromRGB(96, 132, 255)
+local BUSY_COLOR = Color3.fromRGB(58, 62, 78)
+local BUTTON_WIDTH = L.RollWidth
+local BUTTON_HEIGHT = L.RollHeight
+local ODDS_GAP = 8
+local ODDS_HEIGHT = 18
+local COOLDOWN_HEIGHT = 22
+
+local RollUI = {}
+RollUI.__index = RollUI
+
+export type RollUI = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		Scales: { UIScale },
+		Button: TextButton,
+		ButtonLabel: TextLabel?,
+		ButtonImage: ImageLabel?,
+		Cooldown: Frame,
+		CooldownLabel: TextLabel,
+		Status: TextLabel,
+		InventoryButton: TextButton,
+		Banner: Frame,
+		BannerLabel: TextLabel,
+		Notice: TextLabel,
+		Stroke: UIStroke?,
+		Enabled: boolean,
+		OnRoll: (() -> ())?,
+		OnInventory: (() -> ())?,
+	},
+	RollUI
+))
+
+local function buildOdds(parent: Instance): Frame
+	local row = make("Frame", {
+		Name = "Odds",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + COOLDOWN_HEIGHT + ODDS_GAP),
+		Size = UDim2.new(0, 560, 0, ODDS_HEIGHT),
+		Parent = parent,
+	}, {
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 10),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	for index, rarity in Rarities.List do
+		local percent = Rarities.chancePercent(rarity.Id)
+		local text = if percent >= 1
+			then `{rarity.Name} {string.format("%.0f", percent)}%`
+			else `{rarity.Name} {string.format("%.2f", percent)}%`
+
+		Theme.label({
+			Name = rarity.Id,
+			LayoutOrder = index,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.new(0, 0, 1, 0),
+			TextScaled = false,
+			TextSize = 13,
+			Text = text,
+			TextColor3 = rarity.TextColor,
+			Parent = row,
+		}, 2)
+	end
+
+	return row
+end
+
+local function buildSideButton(parent: Instance): TextButton
+	local size = L.SideButton
+
+	local button = make("TextButton", {
+		Name = "InventoryButton",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.42, 0),
+		Size = UDim2.fromOffset(size, size + 16),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}) :: TextButton
+
+	local tile = Theme.slotFrame({
+		Name = "Tile",
+		Size = UDim2.fromOffset(size, size),
+	}, Color3.fromRGB(120, 90, 255)) :: Frame
+	tile.Parent = button
+
+	make("Frame", {
+		Name = "BagBody",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.82),
+		Size = UDim2.fromScale(0.6, 0.44),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Parent = tile,
+	}, {
+		Theme.corner(6),
+		Theme.stroke(Theme.Colors.Outline, 2),
+	})
+
+	make("Frame", {
+		Name = "BagHandle",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.44),
+		Size = UDim2.fromScale(0.32, 0.3),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	}, {
+		Theme.corner(999),
+		Theme.stroke(Color3.new(1, 1, 1), 4),
+	})
+
+	Theme.label({
+		Name = "Caption",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(size + 20, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = "Items",
+		Parent = button,
+	}, 2.5)
+
+	Theme.label({
+		Name = "Key",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 2, 0, 2),
+		Size = UDim2.fromOffset(16, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = Config.Keys.Inventory.Name,
+		Parent = button,
+	}, 2)
+
+	return button
+end
+
+function RollUI.new(): RollUI
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = make("ScreenGui", {
+		Name = "CardRollUI",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 10,
+	}) :: ScreenGui
+
+	local dock = make("Frame", {
+		Name = "Dock",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -L.RollBottom),
+		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + ODDS_GAP + COOLDOWN_HEIGHT + ODDS_HEIGHT),
+		Parent = gui,
+	})
+
+	local status = Theme.label({
+		Name = "Status",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -4),
+		Size = UDim2.fromOffset(560, 20),
+		TextScaled = false,
+		TextSize = 16,
+		Text = "",
+		Parent = dock,
+	}, 2.5)
+
+	local artId = Theme.Images.RollButton
+	local buttonLabel: TextLabel? = nil
+	local buttonImage: ImageLabel? = nil
+	local stroke: UIStroke? = nil
+
+	local button = make("TextButton", {
+		Name = "RollButton",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.fromOffset(BUTTON_WIDTH, BUTTON_HEIGHT),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = dock,
+	}) :: TextButton
+
+	if artId ~= "" then
+		buttonImage = make("ImageLabel", {
+			Name = "Art",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Image = artId,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = button,
+		}) :: ImageLabel
+	else
+		button.BackgroundTransparency = 0
+		button.BackgroundColor3 = IDLE_COLOR
+		stroke = Theme.stroke(Theme.Colors.Outline, 3)
+		buttonLabel = Theme.label({
+			Name = "Label",
+			Size = UDim2.fromScale(1, 1),
+			TextScaled = false,
+			TextSize = 30,
+			Text = "ROLL",
+		}, 3.5)
+
+		Theme.corner(14).Parent = button
+		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(178, 184, 206)).Parent = button
+		;(stroke :: UIStroke).Parent = button
+		;(buttonLabel :: TextLabel).Parent = button
+	end
+
+	local cooldown = Theme.panel({
+		Name = "Cooldown",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + 2),
+		Size = UDim2.fromOffset(96, COOLDOWN_HEIGHT),
+		BackgroundColor3 = Color3.fromRGB(12, 13, 17),
+		Visible = false,
+		Parent = dock,
+	}, Color3.fromRGB(70, 76, 96))
+
+	local cooldownLabel = Theme.label({
+		Name = "Label",
+		Size = UDim2.fromScale(1, 1),
+		TextScaled = false,
+		TextSize = 15,
+		Text = "",
+		Parent = cooldown,
+	}, 2)
+
+	buildOdds(dock)
+	local sideButton = buildSideButton(gui)
+
+	local bannerLabel = Theme.label({
+		Name = "Label",
+		Size = UDim2.fromScale(1, 1),
+		TextScaled = false,
+		TextSize = 22,
+		Text = "",
+	}, 3)
+
+	local banner = Theme.panel({
+		Name = "Banner",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 74),
+		Size = UDim2.fromOffset(400, 54),
+		Visible = false,
+		Parent = gui,
+	}, Color3.new(1, 1, 1), { bannerLabel })
+
+	local notice = Theme.label({
+		Name = "Notice",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 140),
+		Size = UDim2.fromOffset(520, 24),
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Visible = false,
+		Parent = gui,
+	}, 3)
+
+	local scales: { UIScale } = {}
+	for _, host in { dock, sideButton, banner, notice } do
+		table.insert(scales, make("UIScale", { Scale = 1, Parent = host }) :: UIScale)
+	end
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		Scales = scales,
+		Button = button,
+		ButtonLabel = buttonLabel,
+		ButtonImage = buttonImage,
+		Cooldown = cooldown,
+		CooldownLabel = cooldownLabel,
+		Status = status,
+		InventoryButton = sideButton,
+		Banner = banner,
+		BannerLabel = bannerLabel,
+		Notice = notice,
+		Stroke = stroke,
+		Enabled = true,
+		OnRoll = nil,
+		OnInventory = nil,
+	}, RollUI)
+
+	button.MouseButton1Click:Connect(function()
+		if self.Enabled and self.OnRoll then
+			(self.OnRoll :: any)()
+		end
+	end)
+
+	sideButton.MouseButton1Click:Connect(function()
+		if self.OnInventory then
+			(self.OnInventory :: any)()
+		end
+	end)
+
+	local function scaleTo(factor: number)
+		TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
+			Size = UDim2.fromOffset(
+				math.floor(BUTTON_WIDTH * factor),
+				math.floor(BUTTON_HEIGHT * factor)
+			),
+		}):Play()
+	end
+
+	button.MouseEnter:Connect(function()
+		if self.Enabled then
+			scaleTo(1.04)
+		end
+	end)
+	button.MouseLeave:Connect(function()
+		scaleTo(1)
+	end)
+	button.MouseButton1Down:Connect(function()
+		if self.Enabled then
+			scaleTo(0.96)
+		end
+	end)
+	button.MouseButton1Up:Connect(function()
+		scaleTo(1)
+	end)
+
+	self:setStatus(`Roll for {Config.CardsPerRoll} cards`)
+
+	return (self :: any) :: RollUI
+end
+
+function RollUI.setScale(self: RollUI, factor: number)
+	for _, scale in self.Scales do
+		scale.Scale = factor
+	end
+end
+
+function RollUI.setEnabled(self: RollUI, enabled: boolean)
+	if self.Enabled == enabled then
+		return
+	end
+	self.Enabled = enabled
+
+	local image = self.ButtonImage
+	if image then
+
+		TweenService:Create(image, TweenInfo.new(0.18), {
+			ImageColor3 = if enabled then Color3.new(1, 1, 1) else Color3.fromRGB(120, 124, 136),
+		}):Play()
+		return
+	end
+
+	local label = self.ButtonLabel
+	if label then
+		label.TextTransparency = if enabled then 0 else 0.35
+	end
+	TweenService:Create(self.Button, TweenInfo.new(0.18), {
+		BackgroundColor3 = if enabled then IDLE_COLOR else BUSY_COLOR,
+	}):Play()
+	local stroke = self.Stroke
+	if stroke then
+		stroke.Transparency = if enabled then 0 else 0.45
+	end
+end
+
+function RollUI.setCooldownText(self: RollUI, text: string?)
+	if text then
+		self.CooldownLabel.Text = text
+		self.Cooldown.Visible = true
+	else
+		self.Cooldown.Visible = false
+	end
+end
+
+function RollUI.setStatus(self: RollUI, text: string)
+	self.Status.Text = text
+end
+
+function RollUI.runCooldown(
+	self: RollUI,
+	seconds: number,
+	isCurrent: () -> boolean,
+	onFinished: (() -> ())?
+)
+	task.spawn(function()
+		self:setEnabled(false)
+		local remaining = seconds
+		while remaining > 0 do
+			if not isCurrent() then
+				return
+			end
+			self:setCooldownText(string.format("%.1fs", remaining))
+			remaining -= task.wait(0.1)
+		end
+		if not isCurrent() then
+			return
+		end
+		self:setCooldownText(nil)
+		self:setEnabled(true)
+		if onFinished then
+			onFinished()
+		end
+	end)
+end
+
+function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity)
+	local banner = self.Banner
+	local edge = banner:FindFirstChildOfClass("UIStroke")
+	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}`
+	self.BannerLabel.TextColor3 = rarity.TextColor
+	if edge then
+		edge.Color = rarity.Color
+	end
+
+	banner.Visible = true
+	banner.BackgroundTransparency = 1
+	self.BannerLabel.TextTransparency = 1
+
+	local inInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(banner, inInfo, { BackgroundTransparency = 0.05 }):Play()
+	TweenService:Create(self.BannerLabel, inInfo, { TextTransparency = 0 }):Play()
+
+	task.delay(2.4, function()
+		local outInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		TweenService:Create(self.BannerLabel, outInfo, { TextTransparency = 1 }):Play()
+		local fade = TweenService:Create(banner, outInfo, { BackgroundTransparency = 1 })
+		fade.Completed:Connect(function()
+			banner.Visible = false
+		end)
+		fade:Play()
+	end)
+end
+
+function RollUI.showNotice(self: RollUI, text: string, isError: boolean?)
+	self.Notice.Text = text
+	self.Notice.TextColor3 = if isError then Theme.Colors.Danger else Theme.Colors.Text
+	self.Notice.Visible = true
+	self.Notice.TextTransparency = 0
+
+	task.delay(2.2, function()
+		if self.Notice.Text ~= text then
+			return
+		end
+		local fade = TweenService:Create(self.Notice, TweenInfo.new(0.3), { TextTransparency = 1 })
+		fade.Completed:Connect(function()
+			if self.Notice.Text == text then
+				self.Notice.Visible = false
+			end
+		end)
+		fade:Play()
+	end)
+end
+
+return RollUI
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript) > Showcase (ModuleScript)
+==============================================================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local SHOW = Config.Showcase
+
+local Showcase = {}
+Showcase.__index = Showcase
+
+export type Showcase = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		NameLabel: TextLabel,
+		RarityLabel: TextLabel,
+		OwnedLabel: TextLabel,
+		TagLabel: TextLabel,
+		Hint: TextLabel,
+		Part: BasePart?,
+		Sparks: ParticleEmitter?,
+		Base: CFrame,
+		StartTime: number,
+		Open: boolean,
+		Connection: RBXScriptConnection?,
+		OnClosed: (() -> ())?,
+	},
+	Showcase
+))
+
+function Showcase.new(): Showcase
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = make("ScreenGui", {
+		Name = "CardShowcase",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 20,
+		Enabled = false,
+	}) :: ScreenGui
+
+	local column = make("Frame", {
+		Name = "Details",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.58, 0.46),
+		Size = UDim2.fromOffset(420, 160),
+		Parent = gui,
+	})
+
+	local nameLabel = Theme.label({
+		Name = "ItemName",
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0, 34),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 30,
+		Text = "",
+		Parent = column,
+	}, 3)
+
+	local rarityLabel = Theme.label({
+		Name = "Rarity",
+		Position = UDim2.fromOffset(0, 34),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Parent = column,
+	}, 2.5)
+
+	local ownedLabel = Theme.label({
+		Name = "Owned",
+		Position = UDim2.fromOffset(0, 58),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Parent = column,
+	}, 2.5)
+
+	local tagLabel = Theme.label({
+		Name = "Tagline",
+		Position = UDim2.fromOffset(0, 92),
+		Size = UDim2.new(1, 0, 0, 32),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 24,
+		TextWrapped = true,
+		Text = "",
+		Parent = column,
+	}, 3)
+
+	local hint = Theme.label({
+		Name = "Hint",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -70),
+		Size = UDim2.fromOffset(400, 24),
+		TextScaled = false,
+		TextSize = 18,
+		Text = "(Click anywhere to continue)",
+		Parent = gui,
+	}, 2.5)
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		NameLabel = nameLabel,
+		RarityLabel = rarityLabel,
+		OwnedLabel = ownedLabel,
+		TagLabel = tagLabel,
+		Hint = hint,
+		Part = nil,
+		Sparks = nil,
+		Base = CFrame.new(),
+		StartTime = 0,
+		Open = false,
+		Connection = nil,
+		OnClosed = nil,
+	}, Showcase)
+
+	return (self :: any) :: Showcase
+end
+
+local function buildFace(card: Cards.Card, rarity: Rarities.Rarity): CanvasGroup
+	local top, bottom = Theme.rarityBackdrop(rarity.Color)
+	return make("CanvasGroup", {
+		Name = "Face",
+		BackgroundColor3 = top,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		ClipsDescendants = true,
+	}, {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(rarity.Color, 6),
+		Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.5, 0.66),
+		}),
+	})
+end
+
+function Showcase.show(self: Showcase, cardId: string)
+	local card = Cards.get(cardId)
+	if not card then
+		return
+	end
+	local rarity = Rarities.get(card.Rarity)
+
+	self:hide(true)
+
+	local camera = workspace.CurrentCamera
+	local base = camera.CFrame * CFrame.new(0, 0.2, -SHOW.Distance)
+	self.Base = CFrame.lookAt(base.Position, camera.CFrame.Position)
+
+	local part = make("Part", {
+		Name = "ShowcaseItem",
+		Anchored = true,
+		CanCollide = false,
+		CanTouch = false,
+		CanQuery = false,
+		CastShadow = false,
+		Material = Enum.Material.SmoothPlastic,
+		Color = Color3.fromRGB(14, 15, 20),
+		Size = SHOW.Size,
+		CFrame = self.Base,
+		Parent = workspace,
+	}) :: BasePart
+
+	make("SurfaceGui", {
+		Name = "FaceGui",
+		Face = Enum.NormalId.Front,
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = Config.PixelsPerStud,
+		LightInfluence = 0,
+		Brightness = 1.6,
+		MaxDistance = 250,
+		Parent = part,
+	}, { buildFace(card, rarity) })
+
+	make("PointLight", {
+		Color = rarity.GlowColor,
+		Brightness = 3,
+		Range = 16,
+		Shadows = false,
+		Parent = part,
+	})
+
+	local attachment = make("Attachment", { Name = "SparkPoint", Parent = part }) :: Attachment
+	local sparks = make("ParticleEmitter", {
+		Name = "Sparks",
+		Color = ColorSequence.new(rarity.GlowColor),
+		LightEmission = 1,
+		Lifetime = NumberRange.new(0.6, 1.4),
+		Speed = NumberRange.new(9, 20),
+		SpreadAngle = Vector2.new(180, 180),
+		Rate = 26,
+		Rotation = NumberRange.new(0, 360),
+		Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.7),
+			NumberSequenceKeypoint.new(1, 0),
+		}),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = attachment,
+	}) :: ParticleEmitter
+	sparks:Emit(60)
+
+	self.Part = part
+	self.Sparks = sparks
+	self.StartTime = os.clock()
+
+	self.NameLabel.Text = card.Name
+	self.RarityLabel.Text = rarity.Name
+	self.RarityLabel.TextColor3 = rarity.TextColor
+	self.OwnedLabel.Text = `Owned: {Profile.count(cardId)}x`
+	self.TagLabel.Text = card.Description
+
+	self.Gui.Enabled = true
+	self.Open = true
+
+	for _, label in { self.NameLabel, self.RarityLabel, self.OwnedLabel, self.TagLabel } do
+		label.TextTransparency = 1
+		TweenService:Create(label, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+	end
+
+	self.Connection = RunService.RenderStepped:Connect(function()
+		self:step()
+	end)
+end
+
+function Showcase.step(self: Showcase)
+	local part = self.Part
+	if not part then
+		return
+	end
+	local elapsed = os.clock() - self.StartTime
+	local bob = math.sin(elapsed * SHOW.BobSpeed) * SHOW.BobHeight
+	local spin = math.sin(elapsed * SHOW.SpinSpeed) * 0.25
+
+	part.CFrame = CFrame.new(0, bob, 0) * self.Base * CFrame.Angles(0, spin, 0)
+end
+
+function Showcase.hide(self: Showcase, silent: boolean?)
+	if self.Connection then
+		self.Connection:Disconnect()
+		self.Connection = nil
+	end
+	if self.Part then
+		self.Part:Destroy()
+		self.Part = nil
+	end
+	self.Sparks = nil
+
+	local wasOpen = self.Open
+	self.Open = false
+	self.Gui.Enabled = false
+
+	if wasOpen and not silent and self.OnClosed then
+		(self.OnClosed :: any)()
+	end
+end
+
+return Showcase
+
+
+==============================================================================
+StarterPlayer > StarterPlayerScripts > CardClient (LocalScript)
+==============================================================================
+
+local ContextActionService = game:GetService("ContextActionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+local Remotes = require(CardSystem:WaitForChild("Remotes")).get()
+
+local CardVisual = require(script:WaitForChild("CardVisual"))
+local Hotbar = require(script:WaitForChild("Hotbar"))
+local InventoryUI = require(script:WaitForChild("InventoryUI"))
+local Profile = require(script:WaitForChild("Profile"))
+local RollUI = require(script:WaitForChild("RollUI"))
+local Showcase = require(script:WaitForChild("Showcase"))
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local HAND_FOLDER_NAME = "CardHand"
+local RAY_LENGTH = 500
+local UNHOVERED_TILT = 0.5
+
+type State = "idle" | "requesting" | "choosing" | "resolving" | "cooldown"
+
+if Config.HideDefaultBackpack then
+	task.spawn(function()
+		for _ = 1, 10 do
+			local ok = pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			end)
+			if ok then
+				return
+			end
+			task.wait(0.3)
+		end
+	end)
+end
+
+local ui = RollUI.new()
+local hotbar = Hotbar.new()
+local inventory = InventoryUI.new()
+local showcase = Showcase.new()
+
+local visuals: { CardVisual.CardVisual } = {}
+local handFolder: Folder? = nil
+local state: State = "idle"
+local activeRollId: number? = nil
+local stateToken = 0
+
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Include
+raycastParams.IgnoreWater = true
+raycastParams.FilterDescendantsInstances = {}
+
+local movementLocks: { [string]: boolean? } = {}
+local cachedControls: any = nil
+local savedWalkSpeed: number? = nil
+local savedJumpPower: number? = nil
+
+local function getControls(): any
+	if cachedControls then
+		return cachedControls
+	end
+	local scripts = player:FindFirstChild("PlayerScripts")
+	local playerModule = scripts and scripts:FindFirstChild("PlayerModule")
+	if not playerModule then
+		return nil
+	end
+
+	local requireModule: (Instance) -> any = require :: any
+	local ok, result = pcall(function()
+		return requireModule(playerModule):GetControls()
+	end)
+	if ok then
+		cachedControls = result
+	end
+	return cachedControls
+end
+
+local function applyMovementLock()
+	local locked = next(movementLocks) ~= nil
+
+	local controls = getControls()
+	if controls then
+		local ok = pcall(function()
+			if locked then
+				controls:Disable()
+			else
+				controls:Enable()
+			end
+		end)
+		if ok then
+			return
+		end
+		cachedControls = nil
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	if locked then
+		if savedWalkSpeed == nil then
+			savedWalkSpeed = humanoid.WalkSpeed
+			savedJumpPower = humanoid.JumpPower
+		end
+		humanoid.WalkSpeed = 0
+		humanoid.JumpPower = 0
+	elseif savedWalkSpeed then
+		humanoid.WalkSpeed = savedWalkSpeed
+		humanoid.JumpPower = savedJumpPower or humanoid.JumpPower
+		savedWalkSpeed = nil
+		savedJumpPower = nil
+	end
+end
+
+local function setMovementLock(reason: string, locked: boolean)
+	if not Config.LockMovementDuringCards then
+		return
+	end
+	movementLocks[reason] = if locked then true else nil
+	applyMovementLock()
+end
+
+local function playSound(id: string, pitch: number?)
+	if id == "" then
+		return
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = id
+	sound.Volume = Config.SoundVolume
+	sound.PlaybackSpeed = pitch or 1
+	sound.PlayOnRemove = true
+	sound.Parent = SoundService
+	sound:Destroy()
+end
+
+local function setState(newState: State)
+	state = newState
+	stateToken += 1
+	setMovementLock("cards", newState == "choosing" or newState == "resolving")
+end
+
+local function currentTokenGuard(): () -> boolean
+	local token = stateToken
+	return function()
+		return token == stateToken
+	end
+end
+
+local function refreshFilter()
+	local parts: { Instance } = {}
+	for _, visual in visuals do
+		table.insert(parts, visual.Part)
+	end
+	raycastParams.FilterDescendantsInstances = parts
+end
+
+local function clearHand()
+	for _, visual in visuals do
+		visual:destroy()
+	end
+	table.clear(visuals)
+	refreshFilter()
+	if handFolder then
+		handFolder:Destroy()
+		handFolder = nil
+	end
+end
+
+local function handOrigin(): CFrame
+	return camera.CFrame * CFrame.new(0, Config.CameraHeightOffset, -Config.CameraDistance)
+end
+
+local function spawnHand(cardIds: { string })
+	clearHand()
+	camera = workspace.CurrentCamera
+
+	local folder = Instance.new("Folder")
+	folder.Name = HAND_FOLDER_NAME
+	folder.Parent = workspace
+	handFolder = folder
+
+	local origin = handOrigin()
+	local eye = camera.CFrame.Position
+	local middle = (#cardIds + 1) / 2
+
+	for slot, cardId in cardIds do
+		local card = Cards.get(cardId)
+		if not card then
+			warn(`[CardSystem] server sent unknown card "{cardId}"`)
+			continue
+		end
+
+		local offset = (slot - middle) * Config.CardSpacing
+		local position = origin.Position + origin.RightVector * offset
+
+		local visual = CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder)
+
+		visual.OnRevealed = function(revealedSlot: number)
+			playSound(Config.Sounds.Reveal, 1 + (revealedSlot - 1) * Config.RevealPitchStep)
+		end
+
+		table.insert(visuals, visual)
+	end
+
+	refreshFilter()
+	playSound(Config.Sounds.Roll)
+end
+
+local function cardUnderPoint(screenX: number, screenY: number): CardVisual.CardVisual?
+	if #visuals == 0 then
+		return nil
+	end
+	local ray = camera:ViewportPointToRay(screenX, screenY)
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * RAY_LENGTH, raycastParams)
+	if not hit then
+		return nil
+	end
+	for _, visual in visuals do
+		if visual.Part == hit.Instance then
+			return visual
+		end
+	end
+	return nil
+end
+
+local function requestRoll()
+	if state ~= "idle" then
+		return
+	end
+	setState("requesting")
+	ui:setEnabled(false)
+	ui:setStatus("Dealing...")
+	Remotes.RequestRoll:FireServer()
+
+	local guard = currentTokenGuard()
+	task.delay(5, function()
+		if guard() then
+			setState("idle")
+			ui:setEnabled(true)
+			ui:setStatus("No answer from the server, try again")
+		end
+	end)
+end
+
+local function selectCard(visual: CardVisual.CardVisual)
+	if state ~= "choosing" or activeRollId == nil then
+		return
+	end
+	if not visual:isInteractive() then
+		return
+	end
+
+	setState("resolving")
+	ui:setStatus("...")
+	Remotes.SelectCard:FireServer(activeRollId, visual.Slot)
+end
+
+local function returnToIdle(delay: number)
+	setState("cooldown")
+	ui:runCooldown(delay, currentTokenGuard(), function()
+		setState("idle")
+		ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
+	end)
+end
+
+Remotes.ProfileSync.OnClientEvent:Connect(function(snapshot: Profile.Snapshot)
+	Profile.set(snapshot)
+end)
+
+Remotes.Notice.OnClientEvent:Connect(function(text: string, isError: boolean?)
+	ui:showNotice(text, isError)
+end)
+
+Remotes.RollResult.OnClientEvent:Connect(function(rollId: number, cardIds: { string })
+	activeRollId = rollId
+	setState("choosing")
+	spawnHand(cardIds)
+	ui:setEnabled(false)
+	ui:setStatus("Click a card to keep it")
+end)
+
+Remotes.RollRejected.OnClientEvent:Connect(function(reason: string, retryAfter: number)
+	if state == "choosing" or state == "resolving" then
+
+		ui:setStatus(reason)
+		return
+	end
+
+	ui:setStatus(reason)
+	if retryAfter > 0.05 then
+		returnToIdle(retryAfter)
+	else
+		setState("idle")
+		ui:setEnabled(true)
+	end
+end)
+
+Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?)
+	if not ok then
+
+		if state == "resolving" then
+			setState("choosing")
+			ui:setStatus("That pick did not go through, try again")
+		end
+		return
+	end
+
+	local card = if cardId then Cards.get(cardId) else nil
+	activeRollId = nil
+
+	for _, visual in visuals do
+		visual:beginExit(if visual.Slot == slot then "chosen" else "discarded")
+	end
+
+	if card then
+		local rarity = Rarities.get(card.Rarity)
+		ui:showBanner(card.Name, rarity)
+		playSound(if rarity.Sparkle then Config.Sounds.Rare else Config.Sounds.Select)
+	end
+
+	ui:setStatus("Added to your collection")
+	returnToIdle(Config.RollCooldown)
+end)
+
+Profile.onChanged(function()
+	hotbar:refresh()
+	if inventory.Open then
+		inventory:refresh()
+	end
+end)
+
+ui.OnRoll = requestRoll
+ui.OnInventory = function()
+	inventory:toggle()
+	playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
+end
+
+inventory.OnView = function(cardId: string)
+	inventory:close()
+	setMovementLock("showcase", true)
+	showcase:show(cardId)
+end
+
+inventory.OnEquip = function(cardId: string)
+
+	local slot = hotbar.Selected
+	if Profile.equippedAt(slot) then
+		for index = 1, Config.Hotbar.Slots do
+			if not Profile.equippedAt(index) then
+				slot = index
+				break
+			end
+		end
+	end
+	Remotes.EquipCard:FireServer(slot, cardId)
+end
+
+inventory.OnUnequip = function(cardId: string)
+	local slot = Profile.slotOf(cardId)
+	if slot then
+		Remotes.EquipCard:FireServer(slot, nil)
+	end
+end
+
+hotbar.OnSlotActivated = function(_slot: number, cardId: string?)
+	if cardId then
+		setMovementLock("showcase", true)
+		showcase:show(cardId)
+	end
+end
+
+showcase.OnClosed = function()
+	setMovementLock("showcase", false)
+	playSound(Config.Sounds.Close)
+end
+
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+
+	if showcase.Open and isClick then
+		showcase:hide()
+		return
+	end
+
+	if gameProcessed then
+		return
+	end
+
+	if isClick and state == "choosing" then
+		local visual = cardUnderPoint(input.Position.X, input.Position.Y)
+		if visual then
+			selectCard(visual)
+		end
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+
+	if input.KeyCode == Config.Keys.Inventory then
+		inventory:toggle()
+		playSound(if inventory.Open then Config.Sounds.Open else Config.Sounds.Close)
+	elseif input.KeyCode == Enum.KeyCode.Escape and inventory.Open then
+		inventory:close()
+		playSound(Config.Sounds.Close)
+	end
+end)
+
+ContextActionService:BindAction("CardSystemRoll", function(_, inputState: Enum.UserInputState)
+	if inputState == Enum.UserInputState.Begin and state == "idle" then
+		requestRoll()
+	end
+	return Enum.ContextActionResult.Pass
+end, false, Config.Keys.Roll)
+
+local hotbarKeys = {
+	Enum.KeyCode.One,
+	Enum.KeyCode.Two,
+	Enum.KeyCode.Three,
+	Enum.KeyCode.Four,
+	Enum.KeyCode.Five,
+	Enum.KeyCode.Six,
+}
+
+ContextActionService:BindAction("CardSystemHotbar", function(_, inputState: Enum.UserInputState, inputObject: InputObject)
+	if inputState ~= Enum.UserInputState.Begin then
+		return Enum.ContextActionResult.Pass
+	end
+	local index = table.find(hotbarKeys, inputObject.KeyCode)
+	if index then
+		hotbar:activate(index)
+	end
+	return Enum.ContextActionResult.Pass
+end, false, table.unpack(hotbarKeys))
+
+local function applyScale()
+	local factor = Theme.scaleFor(camera.ViewportSize.Y)
+	ui:setScale(factor)
+	hotbar:setScale(factor)
+	inventory:setScale(factor)
+end
+
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
+applyScale()
+
+RunService.RenderStepped:Connect(function(dt: number)
+	if #visuals == 0 then
+		return
+	end
+
+	camera = workspace.CurrentCamera
+	local viewport = camera.ViewportSize
+	local mouse = UserInputService:GetMouseLocation()
+
+	local hovered: CardVisual.CardVisual? = nil
+	if state == "choosing" then
+		hovered = cardUnderPoint(mouse.X, mouse.Y)
+	end
+
+	for index = #visuals, 1, -1 do
+		local visual = visuals[index]
+
+		local screenPoint = camera:WorldToViewportPoint(visual.Part.Position)
+		local dx = math.clamp((mouse.X - screenPoint.X) / (viewport.X * 0.5), -1, 1)
+		local dy = math.clamp((mouse.Y - screenPoint.Y) / (viewport.Y * 0.5), -1, 1)
+
+		local tilt = Vector2.new(dx, -dy)
+
+		local isHovered = hovered == visual
+		if not isHovered then
+			tilt *= UNHOVERED_TILT
+		end
+
+		visual:update(dt, tilt, isHovered)
+
+		if visual:isFinished() then
+			visual:destroy()
+			table.remove(visuals, index)
+			refreshFilter()
+		end
+	end
+
+	if #visuals == 0 and handFolder then
+		handFolder:Destroy()
+		handFolder = nil
+	end
+end)
+
+local function repositionHand()
+	if #visuals == 0 then
+		return
+	end
+	local origin = handOrigin()
+	local eye = camera.CFrame.Position
+	local middle = (#visuals + 1) / 2
+	for index, visual in visuals do
+		local offset = (index - middle) * Config.CardSpacing
+		local position = origin.Position + origin.RightVector * offset
+		visual.BaseCFrame = CFrame.lookAt(position, eye)
+	end
+end
+
+player.CharacterAdded:Connect(function(character: Model)
+	showcase:hide()
+
+	savedWalkSpeed = nil
+	savedJumpPower = nil
+	applyMovementLock()
+
+	if state ~= "choosing" then
+		return
+	end
+	character:WaitForChild("HumanoidRootPart", 10)
+	task.wait(0.5)
+	if state == "choosing" then
+		camera = workspace.CurrentCamera
+		repositionHand()
+	end
+end)
+
+ui:setEnabled(true)
+hotbar:refresh()
