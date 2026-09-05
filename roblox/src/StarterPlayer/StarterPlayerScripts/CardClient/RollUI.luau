@@ -26,10 +26,11 @@ local L = Config.Layout
 
 local IDLE_COLOR = Color3.fromRGB(96, 132, 255)
 local BUSY_COLOR = Color3.fromRGB(58, 62, 78)
-local BUTTON_WIDTH = 236
-local BUTTON_HEIGHT = 62
+local BUTTON_WIDTH = L.RollWidth
+local BUTTON_HEIGHT = L.RollHeight
 local ODDS_GAP = 8
 local ODDS_HEIGHT = 18
+local COOLDOWN_HEIGHT = 22
 
 local RollUI = {}
 RollUI.__index = RollUI
@@ -39,13 +40,16 @@ export type RollUI = typeof(setmetatable(
 		Gui: ScreenGui,
 		Scales: { UIScale },
 		Button: TextButton,
-		ButtonLabel: TextLabel,
+		ButtonLabel: TextLabel?,
+		ButtonImage: ImageLabel?,
+		Cooldown: Frame,
+		CooldownLabel: TextLabel,
 		Status: TextLabel,
 		InventoryButton: TextButton,
 		Banner: Frame,
 		BannerLabel: TextLabel,
 		Notice: TextLabel,
-		Stroke: UIStroke,
+		Stroke: UIStroke?,
 		Enabled: boolean,
 		OnRoll: (() -> ())?,
 		OnInventory: (() -> ())?,
@@ -58,7 +62,7 @@ local function buildOdds(parent: Instance): Frame
 		Name = "Odds",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + ODDS_GAP),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + COOLDOWN_HEIGHT + ODDS_GAP),
 		Size = UDim2.new(0, 560, 0, ODDS_HEIGHT),
 		Parent = parent,
 	}, {
@@ -184,7 +188,7 @@ function RollUI.new(): RollUI
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -L.RollBottom),
-		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + ODDS_GAP + ODDS_HEIGHT),
+		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + ODDS_GAP + COOLDOWN_HEIGHT + ODDS_HEIGHT),
 		Parent = gui,
 	})
 
@@ -199,31 +203,73 @@ function RollUI.new(): RollUI
 		Parent = dock,
 	}, 2.5)
 
-	local buttonLabel = Theme.label({
-		Name = "Label",
-		Size = UDim2.fromScale(1, 1),
-		TextScaled = false,
-		TextSize = 28,
-		Text = "ROLL",
-	}, 3.5)
-
-	local stroke = Theme.stroke(Theme.Colors.Outline, 3)
+	--[[
+		With artwork the word ROLL is part of the image, so the button carries
+		no text of its own and the cooldown counts down on its own strip below
+		rather than covering the art.
+	]]
+	local artId = Theme.Images.RollButton
+	local buttonLabel: TextLabel? = nil
+	local buttonImage: ImageLabel? = nil
+	local stroke: UIStroke? = nil
 
 	local button = make("TextButton", {
 		Name = "RollButton",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 0),
 		Size = UDim2.fromOffset(BUTTON_WIDTH, BUTTON_HEIGHT),
-		BackgroundColor3 = IDLE_COLOR,
+		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = "",
 		Parent = dock,
-	}, {
-		Theme.corner(14),
-		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(178, 184, 206)),
-		stroke,
-		buttonLabel,
 	}) :: TextButton
+
+	if artId ~= "" then
+		buttonImage = make("ImageLabel", {
+			Name = "Art",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			Image = artId,
+			ScaleType = Enum.ScaleType.Fit,
+			Parent = button,
+		}) :: ImageLabel
+	else
+		button.BackgroundTransparency = 0
+		button.BackgroundColor3 = IDLE_COLOR
+		stroke = Theme.stroke(Theme.Colors.Outline, 3)
+		buttonLabel = Theme.label({
+			Name = "Label",
+			Size = UDim2.fromScale(1, 1),
+			TextScaled = false,
+			TextSize = 30,
+			Text = "ROLL",
+		}, 3.5)
+
+		Theme.corner(14).Parent = button
+		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(178, 184, 206)).Parent = button
+		;(stroke :: UIStroke).Parent = button
+		;(buttonLabel :: TextLabel).Parent = button
+	end
+
+	-- Cooldown strip, between the button and the odds row.
+	local cooldown = Theme.panel({
+		Name = "Cooldown",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + 2),
+		Size = UDim2.fromOffset(96, COOLDOWN_HEIGHT),
+		BackgroundColor3 = Color3.fromRGB(12, 13, 17),
+		Visible = false,
+		Parent = dock,
+	}, Color3.fromRGB(70, 76, 96))
+
+	local cooldownLabel = Theme.label({
+		Name = "Label",
+		Size = UDim2.fromScale(1, 1),
+		TextScaled = false,
+		TextSize = 15,
+		Text = "",
+		Parent = cooldown,
+	}, 2)
 
 	buildOdds(dock)
 	local sideButton = buildSideButton(gui)
@@ -270,6 +316,9 @@ function RollUI.new(): RollUI
 		Scales = scales,
 		Button = button,
 		ButtonLabel = buttonLabel,
+		ButtonImage = buttonImage,
+		Cooldown = cooldown,
+		CooldownLabel = cooldownLabel,
 		Status = status,
 		InventoryButton = sideButton,
 		Banner = banner,
@@ -295,7 +344,10 @@ function RollUI.new(): RollUI
 
 	local function scaleTo(factor: number)
 		TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-			Size = UDim2.fromOffset(math.floor(BUTTON_WIDTH * factor), math.floor(BUTTON_HEIGHT * factor)),
+			Size = UDim2.fromOffset(
+				math.floor(BUTTON_WIDTH * factor),
+				math.floor(BUTTON_HEIGHT * factor)
+			),
 		}):Play()
 	end
 
@@ -327,19 +379,41 @@ function RollUI.setScale(self: RollUI, factor: number)
 	end
 end
 
-function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
-	local changed = self.Enabled ~= enabled
+function RollUI.setEnabled(self: RollUI, enabled: boolean)
+	if self.Enabled == enabled then
+		return
+	end
 	self.Enabled = enabled
-	self.ButtonLabel.Text = label or "ROLL"
-	self.ButtonLabel.TextTransparency = if enabled then 0 else 0.35
 
-	-- The cooldown calls this ten times a second; only recolour on a real
-	-- state change so it is not spawning a tween every tick.
-	if changed then
-		TweenService:Create(self.Button, TweenInfo.new(0.18), {
-			BackgroundColor3 = if enabled then IDLE_COLOR else BUSY_COLOR,
+	local image = self.ButtonImage
+	if image then
+		-- Dim the artwork rather than recolouring it.
+		TweenService:Create(image, TweenInfo.new(0.18), {
+			ImageColor3 = if enabled then Color3.new(1, 1, 1) else Color3.fromRGB(120, 124, 136),
 		}):Play()
-		self.Stroke.Transparency = if enabled then 0 else 0.45
+		return
+	end
+
+	local label = self.ButtonLabel
+	if label then
+		label.TextTransparency = if enabled then 0 else 0.35
+	end
+	TweenService:Create(self.Button, TweenInfo.new(0.18), {
+		BackgroundColor3 = if enabled then IDLE_COLOR else BUSY_COLOR,
+	}):Play()
+	local stroke = self.Stroke
+	if stroke then
+		stroke.Transparency = if enabled then 0 else 0.45
+	end
+end
+
+-- Shows the countdown strip under the button, or hides it when given nil.
+function RollUI.setCooldownText(self: RollUI, text: string?)
+	if text then
+		self.CooldownLabel.Text = text
+		self.Cooldown.Visible = true
+	else
+		self.Cooldown.Visible = false
 	end
 end
 
@@ -365,17 +439,19 @@ function RollUI.runCooldown(
 	onFinished: (() -> ())?
 )
 	task.spawn(function()
+		self:setEnabled(false)
 		local remaining = seconds
 		while remaining > 0 do
 			if not isCurrent() then
 				return
 			end
-			self:setEnabled(false, string.format("%.1fs", remaining))
+			self:setCooldownText(string.format("%.1fs", remaining))
 			remaining -= task.wait(0.1)
 		end
 		if not isCurrent() then
 			return
 		end
+		self:setCooldownText(nil)
 		self:setEnabled(true)
 		if onFinished then
 			onFinished()

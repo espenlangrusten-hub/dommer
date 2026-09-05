@@ -41,6 +41,10 @@ local Config = {
 		HotbarGap = 10,
 		HotbarBottom = 16, -- gap from the bottom edge
 		RollBottom = 106, -- the odds strip sits just above the hotbar
+		-- Proportioned for the roll button artwork; the drawn fallback uses
+		-- the same box so swapping art does not move anything.
+		RollWidth = 240,
+		RollHeight = 106,
 		SideButton = 62, -- the inventory button on the left edge
 	},
 

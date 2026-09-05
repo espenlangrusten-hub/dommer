@@ -44,6 +44,44 @@ Theme.DotTexture = ""
 Theme.DotTileSize = UDim2.fromOffset(16, 16)
 Theme.DotTransparency = 0.86
 
+--[[
+	Uploaded artwork. Paste Roblox image ids as "rbxassetid://123456789".
+	Every entry is optional: an empty string keeps the drawn fallback, so the
+	UI works with no art at all and improves one id at a time.
+]]
+Theme.Images = {
+	-- Replaces the drawn roll button. The word ROLL is expected to be part of
+	-- the artwork, so the button's own text is hidden when this is set.
+	RollButton = "",
+
+	-- One frame per hotbar slot, in order. Slots left empty keep the drawn
+	-- frame, so a partial set is fine.
+	HotbarSlots = { "", "", "", "", "", "" },
+}
+
+--[[
+	Shape of the hotbar slot artwork.
+
+	BodyHeightRatio is how much of the image's height the square body takes up.
+	Art with a tab or ear sticking out of the top - a slot number, a ribbon -
+	is taller than its body, and this lets the body line up with the slot while
+	the tab overhangs. 1 means the art is all body.
+
+	WidthRatio does the same for width when the art overhangs sideways.
+]]
+Theme.SlotArt = {
+	BodyHeightRatio = 0.857,
+	WidthRatio = 1.05,
+
+	--[[
+		Tint slot art by rarity. Image tinting multiplies, so it only works on
+		art whose body is white or near white: black outlines stay black and
+		the body takes the rarity colour, giving every tier from one image.
+		Leave false for art that is already coloured, which would go muddy.
+	]]
+	Tint = false,
+}
+
 -- Instance helper ---------------------------------------------------------
 function Theme.make(className: string, props: { [string]: any }, children: { any }?): any
 	local instance = Instance.new(className)

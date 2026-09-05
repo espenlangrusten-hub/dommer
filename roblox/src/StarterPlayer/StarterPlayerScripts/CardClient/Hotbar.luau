@@ -25,7 +25,8 @@ local L = Config.Layout
 type SlotViews = {
 	Button: TextButton,
 	Surface: Frame,
-	Stroke: UIStroke,
+	Stroke: UIStroke?, -- absent on slots that use artwork
+	Art: ImageLabel?,
 	Icon: GuiObject?,
 	KeyFrame: Frame,
 	NameLabel: TextLabel,
@@ -47,8 +48,16 @@ export type Hotbar = typeof(setmetatable(
 	Hotbar
 ))
 
+--[[
+	One slot. When artwork is configured for this index the drawn frame and the
+	number badge are skipped: the art carries its own border and slot number,
+	and it is allowed to overhang the slot so a tab sticking out of the top
+	renders instead of being clipped.
+]]
 local function buildSlot(index: number, parent: Instance): SlotViews
 	local size = L.HotbarSlot
+	local artId = Theme.Images.HotbarSlots[index] or ""
+	local hasArt = artId ~= ""
 
 	local button = make("TextButton", {
 		Name = `Slot{index}`,
@@ -60,15 +69,44 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		Parent = parent,
 	}) :: TextButton
 
-	local surface = Theme.slotFrame({
-		Name = "Surface",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(1, 1),
-	}, Theme.Colors.SlotEmpty) :: Frame
-	surface.Parent = button
+	local surface: Frame
+	local stroke: UIStroke? = nil
+	local art: ImageLabel? = nil
 
-	local stroke = surface:FindFirstChildOfClass("UIStroke") :: UIStroke
+	if hasArt then
+		surface = make("Frame", {
+			Name = "Surface",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+		}) :: Frame
+
+		-- Sized from the art's own proportions so its body lines up with the
+		-- slot while anything above the body overhangs.
+		art = make("ImageLabel", {
+			Name = "Art",
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.fromScale(0.5, 1),
+			Size = UDim2.fromScale(
+				Theme.SlotArt.WidthRatio,
+				1 / math.max(Theme.SlotArt.BodyHeightRatio, 0.01)
+			),
+			Image = artId,
+			ZIndex = 0,
+			Parent = surface,
+		}) :: ImageLabel
+	else
+		surface = Theme.slotFrame({
+			Name = "Surface",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(1, 1),
+		}, Theme.Colors.SlotEmpty) :: Frame
+		stroke = surface:FindFirstChildOfClass("UIStroke")
+	end
+	surface.Parent = button
 
 	-- Everything that only shows on a filled slot.
 	local content = make("Frame", {
@@ -98,7 +136,7 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		Parent = content,
 	}, 3)
 
-	-- The key number badge, top left, like the level badge in the reference.
+	-- The key number badge, only drawn when the art does not carry one.
 	local keyFrame = make("Frame", {
 		Name = "KeyBadge",
 		AnchorPoint = Vector2.new(0, 0),
@@ -107,6 +145,7 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		BackgroundColor3 = Color3.fromRGB(12, 13, 17),
 		BackgroundTransparency = 0.15,
 		BorderSizePixel = 0,
+		Visible = not hasArt,
 		Parent = surface,
 	}, {
 		Theme.corner(6),
@@ -124,6 +163,7 @@ local function buildSlot(index: number, parent: Instance): SlotViews
 		Button = button,
 		Surface = surface,
 		Stroke = stroke,
+		Art = art,
 		Icon = nil,
 		KeyFrame = keyFrame,
 		NameLabel = nameLabel,
@@ -232,34 +272,43 @@ function Hotbar.refresh(self: Hotbar)
 			views.Icon = nil
 		end
 
+		local accent = if card then Rarities.get(card.Rarity).Color else Color3.fromRGB(90, 96, 112)
+
 		if card then
-			local rarity = Rarities.get(card.Rarity)
-			local top = select(1, Theme.rarityBackdrop(rarity.Color))
-			views.Surface.BackgroundColor3 = top
-			views.Stroke.Color = rarity.Color
-			views.Stroke.Transparency = 0
-			views.KeyFrame.Visible = true
 			views.Content.Visible = true
 			views.NameLabel.Text = card.Name
 			views.CountLabel.Text = `x{Profile.count(card.Id)}`
 
-			views.Icon = Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			views.Icon = Theme.iconFor(card.Name, card.Icon, accent, {
 				AnchorPoint = Vector2.new(0.5, 0),
 				Position = UDim2.fromScale(0.5, 0.14),
 				Size = UDim2.fromScale(0.62, 0.44),
 				Parent = views.Surface,
 			})
 		else
-			views.Surface.BackgroundColor3 = Theme.Colors.SlotEmpty
-			views.Stroke.Color = Color3.fromRGB(90, 96, 112)
-			views.Stroke.Transparency = 0.2
 			views.Content.Visible = false
-			views.KeyFrame.Visible = true
 		end
 
-		-- Selection reads as a brighter, thicker edge.
 		local selected = index == self.Selected
-		views.Stroke.Thickness = if selected then 5 else 3
+
+		local art = views.Art
+		if art then
+			-- Tinting multiplies, so it only suits art with a white body.
+			art.ImageColor3 = if Theme.SlotArt.Tint and card then accent else Color3.new(1, 1, 1)
+			-- Art carries its own border, so selection reads as a lift.
+			art.ImageTransparency = if selected then 0 else 0.12
+		else
+			local stroke = views.Stroke
+			if stroke then
+				stroke.Color = accent
+				stroke.Transparency = if card then 0 else 0.2
+				stroke.Thickness = if selected then 5 else 3
+			end
+			views.Surface.BackgroundColor3 = if card
+				then select(1, Theme.rarityBackdrop(accent))
+				else Theme.Colors.SlotEmpty
+		end
+
 		views.Surface.Position = if selected
 			then UDim2.new(0.5, 0, 0.5, -4)
 			else UDim2.fromScale(0.5, 0.5)

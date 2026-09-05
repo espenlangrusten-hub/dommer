@@ -119,6 +119,46 @@ texture behind every slot: upload one, paste its id into `Theme.DotTexture`,
 and every panel picks it up. While it is empty the slots use a two-stop
 gradient, which reads almost the same at slot size.
 
+## Adding artwork
+
+Like audio, images have to live on Roblox's servers before the game can use
+them. Upload in Studio via **View** → **Asset Manager** → **Images** → **+**,
+then right-click an asset → **Copy Asset ID**.
+
+All the ids go in `Theme.Images`. Every one is optional: an empty string keeps
+the drawn fallback, so the UI works with no art at all and improves one id at a
+time.
+
+```lua
+Theme.Images = {
+    RollButton = "rbxassetid://123456789",
+    HotbarSlots = { "rbxassetid://...", "rbxassetid://...", "", "", "", "" },
+}
+```
+
+**Roll button.** The artwork is expected to carry the word ROLL, so the
+button's own text is hidden when an id is set. The cooldown then counts down on
+a small strip below the button rather than covering the art. The button box is
+`Layout.RollWidth` x `Layout.RollHeight`, 240 x 106 by default; match your art's
+aspect ratio there or it will stretch.
+
+**Hotbar slots.** One frame per slot, in order. Art is assumed to carry its own
+border and slot number, so the drawn frame and the number badge are both
+skipped for that slot.
+
+Art with a tab or ear sticking out of the top - a slot number, a ribbon - is
+taller than its square body. `Theme.SlotArt.BodyHeightRatio` says how much of
+the image's height that body takes up, so the body can line up with the slot
+while the tab overhangs instead of being squashed into it. `WidthRatio` does
+the same sideways. Measure your file: a 344 x 385 image whose body is the
+bottom 330px gives `BodyHeightRatio = 330 / 385 = 0.857`.
+
+**Rarity colours from one image.** Set `Theme.SlotArt.Tint = true` and slot art
+is tinted by the rarity of whatever sits in it. Tinting multiplies, so it only
+works on art whose body is white or near white: black outlines stay black and
+the body takes the colour, giving all six tiers from a single file. Art that is
+already coloured goes muddy, so leave it false for that.
+
 ## Adding sounds
 
 Roblox will only play audio that lives on its own servers, so a local file has

@@ -275,7 +275,7 @@ local function requestRoll()
 		return
 	end
 	setState("requesting")
-	ui:setEnabled(false, "...")
+	ui:setEnabled(false)
 	ui:setStatus("Dealing...")
 	Remotes.RequestRoll:FireServer()
 
@@ -327,7 +327,7 @@ Remotes.RollResult.OnClientEvent:Connect(function(rollId: number, cardIds: { str
 	activeRollId = rollId
 	setState("choosing")
 	spawnHand(cardIds)
-	ui:setEnabled(false, "PICK")
+	ui:setEnabled(false)
 	ui:setStatus("Click a card to keep it")
 end)
 

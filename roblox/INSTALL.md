@@ -109,6 +109,23 @@ first.
 **Two hotbars, or the UI drawn twice.** An older copy of the scripts is still
 in the place. Delete the duplicate `CardClient` under StarterPlayerScripts.
 
+## Artwork
+
+The UI draws its own buttons and frames, so it looks complete with no art. To
+use your own, upload the images in Studio (**View** → **Asset Manager** →
+**Images** → **+**), right-click each → **Copy Asset ID**, and paste the ids
+into `ReplicatedStorage.CardSystem.Theme` under `Theme.Images`:
+
+```lua
+Theme.Images = {
+    RollButton = "rbxassetid://123456789",
+    HotbarSlots = { "rbxassetid://...", "", "", "", "", "" },
+}
+```
+
+Any entry left empty keeps the drawn version, so you can add art one piece at a
+time. See `roblox/README.md` for how to match your art's proportions.
+
 ## Sounds
 
 The system ships silent. To add the card reveal tick or any other sound, upload
