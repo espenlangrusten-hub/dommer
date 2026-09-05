@@ -1,24 +1,19 @@
-# 3D Card Roll System (Roblox / Luau)
+# 3D Card System (Roblox / Luau)
 
-A gacha-style card roll built to match the reference clip: press **ROLL** at the
-bottom of the screen, three cards fly in face-down, flip up one by one with a
-rarity-coloured border and glow, lean toward your cursor in 3D, and you click one
-to keep it.
+A gacha card roll, an inventory panel, a hotbar and a full-screen item
+showcase, built to match the two reference clips.
 
-## What is in the box
-
-| File | Runs on | Job |
-| --- | --- | --- |
-| `ReplicatedStorage/CardSystem/Config.luau` | both | every tunable number |
-| `ReplicatedStorage/CardSystem/Rarities.luau` | both | tiers, weights, colours |
-| `ReplicatedStorage/CardSystem/Cards.luau` | both | the card catalogue |
-| `ReplicatedStorage/CardSystem/RollLogic.luau` | both | weighted pick + pity |
-| `ReplicatedStorage/CardSystem/Remotes.luau` | both | names the network surface |
-| `ServerScriptService/CardSystem/init.server.luau` | server | authority, cooldown, awards |
-| `ServerScriptService/CardSystem/Inventory.luau` | server | counts, leaderstats, saving |
-| `StarterPlayerScripts/CardClient/init.client.luau` | client | state machine, input, render loop |
-| `StarterPlayerScripts/CardClient/CardVisual.luau` | client | one 3D card |
-| `StarterPlayerScripts/CardClient/RollUI.luau` | client | roll button, odds, banner |
+- Press **ROLL**: three cards fly in face-down, flip up one by one with a
+  rarity-coloured border and glow, lean toward your cursor in 3D, and you click
+  one to keep it.
+- Press **E**: the inventory opens - green banner header, red close button,
+  coloured tab strip, search field, and a scrolling grid of tinted slots with a
+  gold count in the corner. Hovering a slot raises a tooltip with the name,
+  rarity, description, owned count, and View / Equip buttons.
+- **View** opens the showcase: the item floats in front of the camera under a
+  burst of sparks with its details beside it, and any click dismisses it.
+- The **hotbar** runs along the bottom: six slots, three open from level 1 and
+  three padlocked behind levels 25, 50 and 100, with the XP bar underneath.
 
 ## Install
 
@@ -36,61 +31,102 @@ rojo serve roblox/default.project.json
 Then connect from the Rojo plugin in Studio. The project maps into
 `ReplicatedStorage`, `ServerScriptService` and `StarterPlayer.StarterPlayerScripts`.
 
-## Install by hand (no Rojo)
+## What is in the box
 
-1. `ReplicatedStorage` → new **Folder** named `CardSystem`. Inside it create five
-   **ModuleScript**s named `Config`, `Rarities`, `Cards`, `RollLogic`, `Remotes`
-   and paste the matching file into each.
-2. `ServerScriptService` → new **Script** named `CardSystem`, paste
-   `init.server.luau` into it. Add a **ModuleScript** child named `Inventory`.
-3. `StarterPlayer` → `StarterPlayerScripts` → new **LocalScript** named
-   `CardClient`, paste `init.client.luau` into it. Add two **ModuleScript**
-   children named `CardVisual` and `RollUI`.
+| File | Runs on | Job |
+| --- | --- | --- |
+| `ReplicatedStorage/CardSystem/Config.luau` | both | every tunable number |
+| `ReplicatedStorage/CardSystem/Theme.luau` | both | palette, font and UI builders |
+| `ReplicatedStorage/CardSystem/Rarities.luau` | both | tiers, weights, colours |
+| `ReplicatedStorage/CardSystem/Categories.luau` | both | the inventory tabs |
+| `ReplicatedStorage/CardSystem/Cards.luau` | both | the card catalogue |
+| `ReplicatedStorage/CardSystem/Levels.luau` | both | XP curve and level maths |
+| `ReplicatedStorage/CardSystem/RollLogic.luau` | both | weighted pick + pity |
+| `ReplicatedStorage/CardSystem/Remotes.luau` | both | names the network surface |
+| `ServerScriptService/CardSystem/init.server.luau` | server | authority, cooldown, awards |
+| `ServerScriptService/CardSystem/Inventory.luau` | server | profile, XP, hotbar, saving |
+| `StarterPlayerScripts/CardClient/init.client.luau` | client | wiring, input, render loop |
+| `StarterPlayerScripts/CardClient/Profile.luau` | client | the client's copy of the profile |
+| `StarterPlayerScripts/CardClient/CardVisual.luau` | client | one 3D card |
+| `StarterPlayerScripts/CardClient/RollUI.luau` | client | roll button, odds, notices |
+| `StarterPlayerScripts/CardClient/InventoryUI.luau` | client | the inventory panel |
+| `StarterPlayerScripts/CardClient/Hotbar.luau` | client | hotbar and level bar |
+| `StarterPlayerScripts/CardClient/Showcase.luau` | client | the item showcase |
 
-Names matter: every `require` looks the modules up by name.
+## How it hangs together
 
-## How a roll flows
+The server is the only thing that decides anything:
 
 1. Client presses ROLL and fires `RequestRoll`. Nothing is decided locally.
-2. Server checks the cooldown and that no hand is already pending, rolls
-   `Config.CardsPerRoll` cards with its own `Random`, stores them against a roll
-   id, and fires `RollResult`.
-3. Client freezes a spawn point in front of the camera, builds one anchored Part
-   per card, and animates entrance, flip, cursor tilt and hover from a single
-   `RenderStepped` pass.
+2. Server checks the cooldown and that no hand is already pending, rolls three
+   cards with its own `Random`, stores them against a roll id, and fires
+   `RollResult`.
+3. Client freezes a spawn point in front of the camera, builds one anchored
+   Part per card, and animates entrance, flip, cursor tilt and hover from a
+   single `RenderStepped` pass.
 4. Click a card and the client sends `SelectCard(rollId, slot)`. The server
-   validates the id and the slot, awards the card, updates leaderstats and
-   replies. A slot the server did not deal is rejected.
+   validates the id and the slot, grants the card and its XP, then pushes a
+   `ProfileSync` with the whole profile.
+5. Every panel reads from `Profile`, the client's copy of that snapshot, so the
+   hotbar, the inventory and the showcase can never disagree.
 
-The client only ever renders what the server sent, so editing the local scripts
-cannot change what drops.
+Equipping works the same way: the client asks, the server checks that the card
+is owned and that the slot is unlocked for the player's level, and either
+syncs the new profile or sends back a `Notice` explaining the refusal.
+
+## Controls
+
+| Input | Does |
+| --- | --- |
+| `ROLL` button or `R` | roll three cards |
+| Click a card | keep it |
+| `Items` button or `E` | open and close the inventory |
+| `Esc` | close the inventory |
+| `1` - `6` | select a hotbar slot |
+| Click anywhere | dismiss the showcase |
+
+The stock Roblox backpack sits exactly where the hotbar goes, so it is hidden
+on join. Set `Config.HideDefaultBackpack = false` to keep it.
 
 ## Tuning
 
 Everything lives in `Config.luau`:
 
 - `CardsPerRoll`, `RollCooldown` - roll rules.
-- `PityRolls`, `PityMinimumRarity` - after this many rolls with nothing good, one
-  card in the hand is upgraded. Set `PityRolls = 0` to switch it off.
+- `PityRolls`, `PityMinimumRarity` - after this many rolls with nothing good,
+  one card in the hand is upgraded. Set `PityRolls = 0` to switch it off.
 - `CardSize`, `CardSpacing`, `CameraDistance` - how the hand is laid out.
 - `MaxTilt`, `TiltSmoothing`, `HoverPop`, `HoverScale` - the 3D lean.
-- `EnterDuration`, `FlipDuration`, `FlipStagger` - reveal pacing.
+- `Layout` - where the hotbar, level bar and roll button sit.
+- `Hotbar.LevelGates` - the level each slot unlocks at.
+- `Inventory.Columns`, `SlotSize` - the grid.
+- `Keys` - the keybinds.
 - `Sounds` - drop in `rbxassetid://` strings; empty strings stay silent.
+
+Colours and the font are in `Theme.luau`. The reference UI uses a halftone dot
+texture behind every slot: upload one, paste its id into `Theme.DotTexture`,
+and every panel picks it up. While it is empty the slots use a two-stop
+gradient, which reads almost the same at slot size.
 
 ## Adding cards
 
 Append to the list in `Cards.luau`:
 
 ```lua
-{ Id = "sunspear", Name = "Sunspear", Rarity = "Legendary", Icon = "rbxassetid://123456789", Flavor = "It only sets when you do." },
+{ Id = "sunspear", Name = "Sunspear", Rarity = "Legendary", Category = "Weapons",
+  Icon = "rbxassetid://123456789", Flavor = "It only sets when you do.",
+  Description = "Deals bonus damage at noon." },
 ```
 
-`Id` must be unique and `Rarity` must match a tier in `Rarities.luau`. Leave
-`Icon = ""` and the card draws the name's first letter instead, so a card works
-before its art exists. Every tier needs at least one card; the module asserts on
-load if one is empty.
+`Id` must be unique, `Rarity` must match a tier in `Rarities.luau`, and
+`Category` must match one in `Categories.luau`. Leave `Icon = ""` and the card
+draws the name's first letter instead, so a card works before its art exists.
+The module asserts on load if a rarity or a category ends up with no cards.
 
-## Adding or rebalancing rarities
+Adding a category to `Categories.luau` makes a new tab appear with no other
+edits.
+
+## Rarity odds
 
 `Weight` is relative, not a percentage. The odds strip under the roll button
 recomputes itself from the weights, so adding a tier needs no other edit.
@@ -104,20 +140,40 @@ recomputes itself from the weights, so adding a tier needs no other edit.
 | Legendary | 22 | 1.19% |
 | Mythic | 4 | 0.22% |
 
-Weights total 1856. With three cards per roll, 17.6% of hands
-contain at least one Epic or better.
+Weights total 1856. With three cards per roll, 17.6% of hands contain at least
+one Epic or better.
+
+## Levelling
+
+Keeping a card pays 5 XP at Common up to 30 at Mythic, which averages 9.3 XP a
+roll across the odds above. The curve in `Levels.luau` is quadratic:
+
+| Level | Total XP | Rolls at the average |
+| --- | --- | --- |
+| 10 | 614 | ~66 |
+| 25 | 5,705 | ~610 |
+| 50 | 35,290 | ~3,800 |
+| 100 | 241,085 | ~25,900 |
+
+Level 100 is deliberately an endgame number, matching the reference UI's third
+locked slot. If that is too steep for your game, lower the gates in
+`Config.Hotbar.LevelGates` or flatten the curve in `Levels.xpForNext`.
 
 ## Saving
 
-`Inventory.luau` writes to the `CardInventory_v1` DataStore. Every call is
-wrapped in `pcall`; if DataStores are unavailable (an unpublished place, or
-Studio without API access enabled) it warns once and keeps inventories in memory
-for the session. Set `SAVE_ENABLED = false` at the top of the module to skip
-DataStores entirely.
+`Inventory.luau` writes to the `CardInventory_v2` DataStore: owned counts, XP,
+the pity counter and the equipped hotbar. Every call is wrapped in `pcall`; if
+DataStores are unavailable (an unpublished place, or Studio without API access
+enabled) it warns once and keeps profiles in memory for the session. Set
+`SAVE_ENABLED = false` at the top of the module to skip DataStores entirely.
+
+Loaded saves are sanitised: cards that no longer exist in the catalogue are
+dropped, and an equipped slot pointing at a card the player does not own is
+cleared.
 
 ## Verifying it outside Studio
 
-The data modules are pure Luau, so the roll math can be checked without opening
+The data modules are pure Luau, so the maths can be checked without opening
 Roblox:
 
 ```bash
@@ -125,8 +181,9 @@ python3 roblox/tests/run.py path/to/luau
 ```
 
 It rolls 300,000 hands and asserts the observed rarity frequencies match the
-configured weights, that the pity counter caps dry streaks, and that every card
-in the catalogue is reachable. Re-run it after changing any weight.
+configured weights, that the pity counter caps dry streaks, that every card is
+reachable, that no tab is empty, and that the XP curve never stalls or reports
+the wrong level at a boundary. Re-run it after changing any weight or curve.
 
 The whole tree also type-checks against the real Roblox API with
 [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp):
@@ -144,3 +201,5 @@ luau-lsp analyze --definitions=globalTypes.d.luau --no-strict-dm-types \
 - A pending hand blocks the next roll until a card is picked. There is no
   auto-pick timeout.
 - The catalogue ships without art. Point `Icon` at your own decals.
+- Equipping a card is tracked and saved, but it has no gameplay effect yet.
+  `Hotbar.OnSlotActivated` in the client is where you hook one up.

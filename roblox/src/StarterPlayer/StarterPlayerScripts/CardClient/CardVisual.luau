@@ -14,11 +14,11 @@ local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
 
 type Card = Cards.Card
 
 local BACKDROP = Color3.fromRGB(16, 17, 22)
-local PANEL = Color3.fromRGB(26, 28, 36)
 
 -- Easing -----------------------------------------------------------------
 local function clamp01(n: number): number
@@ -42,239 +42,171 @@ local function lerp(a: number, b: number, t: number): number
 	return a + (b - a) * t
 end
 
--- Instance helper --------------------------------------------------------
-local function make(className: string, props: { [string]: any }, children: { any }?): any
-	local instance = Instance.new(className)
-	local parent = props.Parent
-	for key, value in props do
-		if key ~= "Parent" then
-			(instance :: any)[key] = value
-		end
-	end
-	if children then
-		for _, child in children do
-			child.Parent = instance
-		end
-	end
-	-- Parent last: setting it first makes Roblox replicate every later property.
-	if parent then
-		instance.Parent = parent
-	end
-	return instance
-end
-
 -- Face building ----------------------------------------------------------
-local function diagonalSheen(): Instance
-	-- The soft X-fold shading the reference cards use.
-	return make("Frame", {
-		Name = "Sheen",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-	}, {
-		make("Frame", {
-			Name = "A",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1.6, 0.5),
-			Rotation = 34,
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-			BackgroundTransparency = 0.94,
-			BorderSizePixel = 0,
-		}),
-		make("Frame", {
-			Name = "B",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1.6, 0.5),
-			Rotation = -34,
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-			BackgroundTransparency = 0.94,
-			BorderSizePixel = 0,
-		}),
-	})
-end
+local make = Theme.make
 
+--[[
+	The card face. Everything here is fully opaque once the entrance finishes:
+	a saturated rarity backdrop, a large icon, and heavy black outlines on
+	every string, so the card reads at a glance instead of washing out against
+	the sky.
+]]
 local function buildFront(card: Card, rarity: Rarities.Rarity): CanvasGroup
-	local iconHolder: Instance
-	if card.Icon ~= "" then
-		iconHolder = make("ImageLabel", {
-			Name = "Icon",
-			BackgroundTransparency = 1,
-			Image = card.Icon,
-			ScaleType = Enum.ScaleType.Fit,
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.07),
-			Size = UDim2.fromScale(0.64, 0.3),
-		})
-	else
-		-- No art yet: draw the card's initial so the layout still reads.
-		iconHolder = make("TextLabel", {
-			Name = "Icon",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.07),
-			Size = UDim2.fromScale(0.64, 0.3),
-			Font = Enum.Font.GothamBold,
-			Text = string.upper(string.sub(card.Name, 1, 1)),
-			TextColor3 = rarity.Color,
-			TextScaled = true,
-			TextTransparency = 0.25,
-		})
+	local top, bottom = Theme.rarityBackdrop(rarity.Color)
+
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(rarity.Color, 7),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
 	end
 
-	return make("CanvasGroup", {
-		Name = "Face",
-		BackgroundColor3 = PANEL,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		GroupTransparency = 1,
-		ClipsDescendants = true,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0.04, 0) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(44, 46, 58)),
-				ColorSequenceKeypoint.new(0.55, Color3.fromRGB(22, 23, 30)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 16)),
-			}),
-		}),
-		make("UIStroke", {
-			Name = "Border",
-			Color = rarity.Color,
-			Thickness = 5,
-			Transparency = 0.05,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}),
-		diagonalSheen(),
-		-- Rarity wash behind the icon.
+	-- Rarity band behind the icon, solid rather than a faint wash.
+	table.insert(
+		children,
 		make("Frame", {
-			Name = "Wash",
-			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.82,
+			Name = "Band",
+			BackgroundColor3 = rarity.Color:Lerp(Color3.new(0, 0, 0), 0.22),
 			BorderSizePixel = 0,
-			Size = UDim2.fromScale(1, 0.42),
+			Size = UDim2.fromScale(1, 0.44),
 		}, {
-			make("UIGradient", {
-				Rotation = 90,
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.35),
-					NumberSequenceKeypoint.new(1, 1),
-				}),
-			}),
-		}),
-		iconHolder,
-		make("TextLabel", {
+			Theme.gradient(
+				rarity.Color:Lerp(Color3.new(1, 1, 1), 0.15),
+				rarity.Color:Lerp(Color3.new(0, 0, 0), 0.45)
+			),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.05),
+			Size = UDim2.fromScale(0.66, 0.34),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "CardName",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.4),
-			Size = UDim2.fromScale(0.88, 0.09),
-			Font = Enum.Font.GothamBold,
+			Position = UDim2.fromScale(0.5, 0.45),
+			Size = UDim2.fromScale(0.9, 0.1),
 			Text = card.Name,
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			TextScaled = true,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.45 }),
-		}),
-		make("TextLabel", {
+		}, 4)
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "RarityLabel",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.505),
-			Size = UDim2.fromScale(0.8, 0.07),
-			Font = Enum.Font.GothamBold,
+			Position = UDim2.fromScale(0.5, 0.56),
+			Size = UDim2.fromScale(0.82, 0.075),
 			Text = rarity.Name,
 			TextColor3 = rarity.TextColor,
-			TextScaled = true,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.5 }),
-		}),
+		}, 4)
+	)
+
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Divider",
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.6),
-			Size = UDim2.fromScale(0.6, 0.006),
+			Position = UDim2.fromScale(0.5, 0.65),
+			Size = UDim2.fromScale(0.62, 0.008),
 			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.4,
 			BorderSizePixel = 0,
-		}),
-		make("TextLabel", {
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "Flavor",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.63),
-			Size = UDim2.fromScale(0.82, 0.16),
-			Font = Enum.Font.SourceSansItalic,
+			Position = UDim2.fromScale(0.5, 0.675),
+			Size = UDim2.fromScale(0.84, 0.15),
 			Text = card.Flavor,
-			TextColor3 = Color3.fromRGB(214, 218, 228),
-			TextScaled = true,
+			TextColor3 = Color3.fromRGB(236, 240, 248),
 			TextWrapped = true,
-		}),
-		-- Footer call to action.
+			TextScaled = false,
+			TextSize = 34,
+		}, 3)
+	)
+
+	-- Footer call to action.
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Footer",
 			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromScale(0.5, 0.955),
-			Size = UDim2.fromScale(0.72, 0.075),
-			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-			BackgroundTransparency = 0.35,
+			Position = UDim2.fromScale(0.5, 0.96),
+			Size = UDim2.fromScale(0.76, 0.085),
+			BackgroundColor3 = Color3.fromRGB(10, 11, 15),
 			BorderSizePixel = 0,
 		}, {
-			make("UICorner", { CornerRadius = UDim.new(0.3, 0) }),
-			make("UIStroke", { Color = rarity.Color, Thickness = 2, Transparency = 0.55 }),
-			make("TextLabel", {
+			Theme.corner(999),
+			Theme.stroke(rarity.Color, 3),
+			Theme.label({
 				Name = "Prompt",
-				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
-				Font = Enum.Font.GothamMedium,
 				Text = "Click to Select",
-				TextColor3 = Color3.fromRGB(236, 239, 245),
-				TextScaled = true,
-			}, {
-				make("UIPadding", {
-					PaddingTop = UDim.new(0.2, 0),
-					PaddingBottom = UDim.new(0.2, 0),
-				}),
-			}),
-		}),
-	})
-end
+			}, 3),
+		})
+	)
 
-local function buildBack(): CanvasGroup
 	return make("CanvasGroup", {
-		Name = "Back",
-		BackgroundColor3 = Color3.fromRGB(20, 21, 28),
+		Name = "Face",
+		BackgroundColor3 = top,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
 		GroupTransparency = 1,
 		ClipsDescendants = true,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0.04, 0) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.fromRGB(38, 40, 52), Color3.fromRGB(12, 12, 17)),
-		}),
-		make("UIStroke", {
-			Color = Color3.fromRGB(92, 98, 116),
-			Thickness = 4,
-			Transparency = 0.3,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}),
-		diagonalSheen(),
+	}, children)
+end
+
+local function buildBack(): CanvasGroup
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(Color3.fromRGB(40, 43, 56), Color3.fromRGB(13, 14, 19)),
+		Theme.stroke(Color3.fromRGB(120, 128, 150), 6),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
+	end
+
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Emblem",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(0.34, 0.24),
+			Size = UDim2.fromScale(0.36, 0.26),
 			Rotation = 45,
-			BackgroundColor3 = Color3.fromRGB(120, 128, 150),
-			BackgroundTransparency = 0.75,
+			BackgroundColor3 = Color3.fromRGB(140, 148, 172),
+			BackgroundTransparency = 0.55,
 			BorderSizePixel = 0,
 		}, {
-			make("UIStroke", { Color = Color3.fromRGB(160, 168, 190), Thickness = 2, Transparency = 0.5 }),
-		}),
-	})
+			Theme.stroke(Color3.fromRGB(190, 198, 220), 3),
+		})
+	)
+
+	return make("CanvasGroup", {
+		Name = "Back",
+		BackgroundColor3 = Color3.fromRGB(22, 23, 30),
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		GroupTransparency = 1,
+		ClipsDescendants = true,
+	}, children)
 end
 
 -- Class ------------------------------------------------------------------
@@ -332,7 +264,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = Config.PixelsPerStud,
 		LightInfluence = 0,
-		Brightness = 1.4,
+		Brightness = 1.9,
 		MaxDistance = 250,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = part,
@@ -344,7 +276,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = Config.PixelsPerStud,
 		LightInfluence = 0,
-		Brightness = 1.2,
+		Brightness = 1.6,
 		MaxDistance = 250,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = part,

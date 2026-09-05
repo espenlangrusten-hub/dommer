@@ -1,9 +1,9 @@
 --!strict
 --[[
 	CardSystem server
-	Authoritative half of the roll: it owns the Random object, the cooldown,
-	the pity counter and the inventory. The client only asks for a hand and
-	says which slot it wants.
+	Authoritative half of the system: it owns the Random object, the cooldown,
+	the pity counter, XP, the inventory and the hotbar. The client only asks
+	for a hand, says which slot it wants, and asks to equip things.
 ]]
 
 local Players = game:GetService("Players")
@@ -27,13 +27,20 @@ local pending: { [Player]: PendingRoll } = {}
 local nextRollAt: { [Player]: number } = {}
 local nextRollId = 0
 
+local function sync(player: Player)
+	local snapshot = Inventory.snapshot(player)
+	if snapshot then
+		Remotes.ProfileSync:FireClient(player, snapshot)
+	end
+end
+
 local function reject(player: Player, reason: string, retryAfter: number?)
 	Remotes.RollRejected:FireClient(player, reason, retryAfter or 0)
 end
 
 local function onRequestRoll(player: Player)
 	if not Inventory.get(player) then
-		reject(player, "Still loading your inventory, try again.")
+		reject(player, "Still loading your profile, try again.")
 		return
 	end
 
@@ -67,18 +74,20 @@ end
 
 local function onSelectCard(player: Player, rollId: any, slot: any)
 	local roll = pending[player]
+	local function refuse()
+		Remotes.SelectionResult:FireClient(player, false, nil, nil, 0)
+	end
+
 	if not roll then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
-
 	if typeof(rollId) ~= "number" or rollId ~= roll.Id then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
-
 	if typeof(slot) ~= "number" or slot ~= math.floor(slot) or slot < 1 or slot > #roll.CardIds then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
 
@@ -86,18 +95,36 @@ local function onSelectCard(player: Player, rollId: any, slot: any)
 	pending[player] = nil
 	nextRollAt[player] = os.clock() + Config.RollCooldown
 
-	local awarded = Inventory.award(player, cardId)
-	if not awarded then
+	local xp = Inventory.award(player, cardId)
+	if not xp then
 		warn(`[CardSystem] could not award "{cardId}" to {player.Name}`)
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
 
-	Remotes.SelectionResult:FireClient(player, true, cardId, slot)
+	Remotes.SelectionResult:FireClient(player, true, cardId, slot, xp)
+	sync(player)
+end
+
+local function onEquipCard(player: Player, slot: any, cardId: any)
+	if typeof(slot) ~= "number" then
+		return
+	end
+	if cardId ~= nil and typeof(cardId) ~= "string" then
+		return
+	end
+
+	local ok, reason = Inventory.equip(player, slot, cardId)
+	if not ok then
+		Remotes.Notice:FireClient(player, reason or "Could not equip that", true)
+		return
+	end
+	sync(player)
 end
 
 local function onPlayerAdded(player: Player)
 	Inventory.load(player)
+	sync(player)
 end
 
 local function onPlayerRemoving(player: Player)
@@ -108,6 +135,7 @@ end
 
 Remotes.RequestRoll.OnServerEvent:Connect(onRequestRoll)
 Remotes.SelectCard.OnServerEvent:Connect(onSelectCard)
+Remotes.EquipCard.OnServerEvent:Connect(onEquipCard)
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)

@@ -1,8 +1,8 @@
 --!strict
 --[[
 	Config
-	Every tunable number for the card roll system lives here.
-	Shared between server and client, so both agree on timings.
+	Every tunable number for the card system lives here.
+	Shared between server and client, so both agree on timings and limits.
 ]]
 
 local Config = {
@@ -35,12 +35,61 @@ local Config = {
 	HoverScale = 1.06,
 	HoverLift = 0.25, -- studs a hovered card rises
 
+	-- Screen layout (pixels, authored against a 900px tall viewport) ------
+	Layout = {
+		XpBarHeight = 24,
+		XpBarWidth = 940,
+		XpBarBottom = 10, -- gap from the bottom edge
+		HotbarSlot = 84,
+		HotbarGap = 10,
+		HotbarBottom = 44, -- sits above the xp bar
+		RollBottom = 150, -- roll button clears the hotbar
+		SideButton = 62, -- the inventory button on the left edge
+	},
+
+	-- Hotbar --------------------------------------------------------------
+	Hotbar = {
+		Slots = 6,
+		-- Level needed to use each slot, in order. Same shape as the
+		-- reference UI: three open, three gated.
+		LevelGates = { 1, 1, 1, 25, 50, 100 },
+	},
+
+	-- Inventory -----------------------------------------------------------
+	Inventory = {
+		Columns = 5,
+		VisibleRows = 3,
+		SlotSize = 92,
+		SlotGap = 8,
+		PanelPadding = 12,
+	},
+
+	-- Showcase -------------------------------------------------------------
+	Showcase = {
+		Distance = 8,
+		Size = Vector3.new(5.4, 3.4, 0.2),
+		SpinSpeed = 0.35, -- radians per second
+		BobHeight = 0.15,
+		BobSpeed = 1.6,
+	},
+
+	-- The stock Roblox backpack sits exactly where our hotbar goes.
+	HideDefaultBackpack = true,
+
+	-- Keys -----------------------------------------------------------------
+	Keys = {
+		Roll = Enum.KeyCode.R,
+		Inventory = Enum.KeyCode.E,
+	},
+
 	-- Sounds (leave "" to stay silent) -----------------------------------
 	Sounds = {
 		Roll = "",
 		Flip = "",
 		Select = "",
 		Rare = "",
+		Open = "",
+		Close = "",
 	},
 }
 

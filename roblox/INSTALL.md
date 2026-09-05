@@ -25,17 +25,28 @@ Download all three to your computer.
 5. Expand **StarterPlayer**, right-click **StarterPlayerScripts** →
    **Insert from File...** → pick `CardClient_StarterPlayerScripts.rbxmx`.
 
+Newer Studio versions renamed that menu entry. If you do not see
+**Insert from File...**, use **Insert** → **Import Roblox Model**, which opens
+the same file picker. If the imported folder lands in Workspace instead of the
+service you right-clicked, just drag it onto the right service in the Explorer.
+
+**Replacing an older copy?** Delete the previous `CardSystem` / `CardClient`
+objects first, then import. Two copies would both run and fight over the UI.
+
 Insert each file into the service itself, not next to it. When you are done the
 Explorer should look like this:
 
 ```
 ReplicatedStorage
 └── CardSystem            (Folder)
-    ├── Config            (ModuleScript)
-    ├── Rarities          (ModuleScript)
     ├── Cards             (ModuleScript)
+    ├── Categories        (ModuleScript)
+    ├── Config            (ModuleScript)
+    ├── Levels            (ModuleScript)
+    ├── Rarities          (ModuleScript)
+    ├── Remotes           (ModuleScript)
     ├── RollLogic         (ModuleScript)
-    └── Remotes           (ModuleScript)
+    └── Theme             (ModuleScript)
 
 ServerScriptService
 └── CardSystem            (Script)
@@ -45,16 +56,32 @@ StarterPlayer
 └── StarterPlayerScripts
     └── CardClient        (LocalScript)
         ├── CardVisual    (ModuleScript)
-        └── RollUI        (ModuleScript)
+        ├── Hotbar        (ModuleScript)
+        ├── InventoryUI   (ModuleScript)
+        ├── Profile       (ModuleScript)
+        ├── RollUI        (ModuleScript)
+        └── Showcase      (ModuleScript)
 ```
 
 ## 3. Play it
 
-Press **F5** (or the Play button). A blue **ROLL** button sits at the bottom of
-the screen. Press it, three cards fly in and flip up, then click one to keep it.
-The `R` key rolls too.
+Press **F5** (or the Play button).
 
-Your card count shows in the player list, top right.
+| Input | Does |
+| --- | --- |
+| `ROLL` button or `R` | roll three cards |
+| Click a card | keep it |
+| `Items` button on the left, or `E` | open and close the inventory |
+| Hover a slot | tooltip with rarity, description and View / Equip |
+| `View` | full-screen item showcase, click anywhere to dismiss |
+| `1` - `6` | select a hotbar slot |
+
+The hotbar runs along the bottom with the XP bar under it. The first three
+slots are open, the last three unlock at levels 25, 50 and 100. Your level and
+card count also show in the player list, top right.
+
+The stock Roblox backpack is hidden on join, because it sits exactly where the
+hotbar goes. Set `HideDefaultBackpack = false` in `Config` to keep it.
 
 ## If something looks wrong
 
@@ -75,12 +102,20 @@ Services**. Nothing else breaks either way.
 `ReplicatedStorage.CardSystem.Config` and raise `CameraDistance`, or lower it in
 a tight room.
 
+**The inventory is empty.** It only lists cards you own, so roll and keep a few
+first.
+
+**Two hotbars, or the UI drawn twice.** An older copy of the scripts is still
+in the place. Delete the duplicate `CardClient` under StarterPlayerScripts.
+
 ## Changing things
 
 Everything tunable is in `ReplicatedStorage.CardSystem.Config` - roll cooldown,
-card size and spacing, animation speed, how far cards lean toward the cursor.
-Cards live in `Cards`, rarity tiers and their odds in `Rarities`. See
-`roblox/README.md` for the details.
+card size and spacing, animation speed, cursor lean, the screen layout, the
+hotbar level gates and the keybinds. Cards live in `Cards`, rarity tiers and
+their odds in `Rarities`, the inventory tabs in `Categories`, the XP curve in
+`Levels`, and every colour and font in `Theme`. See `roblox/README.md` for the
+details.
 
 ## Rebuilding these files
 

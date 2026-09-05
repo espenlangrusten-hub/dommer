@@ -4,11 +4,15 @@
 	One place that names the network surface. The server creates the objects,
 	the client waits for them.
 
-	client -> server : RequestRoll()            ask for a new hand
-	                   SelectCard(rollId, slot) keep one card from the hand
+	client -> server : RequestRoll()             ask for a new hand
+	                   SelectCard(rollId, slot)  keep one card from the hand
+	                   EquipCard(slot, cardId)   put a card on the hotbar
+	                                             (cardId nil clears the slot)
 	server -> client : RollResult(rollId, {cardId})
 	                   RollRejected(reason, retryAfterSeconds)
 	                   SelectionResult(ok, cardId, slot)
+	                   ProfileSync(profile)      counts, xp and hotbar
+	                   Notice(text, isError)     one-line toast
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,6 +25,9 @@ local EVENT_NAMES = {
 	"RollRejected",
 	"SelectCard",
 	"SelectionResult",
+	"EquipCard",
+	"ProfileSync",
+	"Notice",
 }
 
 export type Remotes = {
@@ -29,6 +36,9 @@ export type Remotes = {
 	RollRejected: RemoteEvent,
 	SelectCard: RemoteEvent,
 	SelectionResult: RemoteEvent,
+	EquipCard: RemoteEvent,
+	ProfileSync: RemoteEvent,
+	Notice: RemoteEvent,
 }
 
 local cached: Remotes? = nil

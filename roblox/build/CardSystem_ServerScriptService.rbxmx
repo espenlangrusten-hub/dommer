@@ -7,9 +7,9 @@
 			<ProtectedString name="Source"><![CDATA[--!strict
 --[[
 	CardSystem server
-	Authoritative half of the roll: it owns the Random object, the cooldown,
-	the pity counter and the inventory. The client only asks for a hand and
-	says which slot it wants.
+	Authoritative half of the system: it owns the Random object, the cooldown,
+	the pity counter, XP, the inventory and the hotbar. The client only asks
+	for a hand, says which slot it wants, and asks to equip things.
 ]]
 
 local Players = game:GetService("Players")
@@ -33,13 +33,20 @@ local pending: { [Player]: PendingRoll } = {}
 local nextRollAt: { [Player]: number } = {}
 local nextRollId = 0
 
+local function sync(player: Player)
+	local snapshot = Inventory.snapshot(player)
+	if snapshot then
+		Remotes.ProfileSync:FireClient(player, snapshot)
+	end
+end
+
 local function reject(player: Player, reason: string, retryAfter: number?)
 	Remotes.RollRejected:FireClient(player, reason, retryAfter or 0)
 end
 
 local function onRequestRoll(player: Player)
 	if not Inventory.get(player) then
-		reject(player, "Still loading your inventory, try again.")
+		reject(player, "Still loading your profile, try again.")
 		return
 	end
 
@@ -73,18 +80,20 @@ end
 
 local function onSelectCard(player: Player, rollId: any, slot: any)
 	local roll = pending[player]
+	local function refuse()
+		Remotes.SelectionResult:FireClient(player, false, nil, nil, 0)
+	end
+
 	if not roll then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
-
 	if typeof(rollId) ~= "number" or rollId ~= roll.Id then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
-
 	if typeof(slot) ~= "number" or slot ~= math.floor(slot) or slot < 1 or slot > #roll.CardIds then
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
 
@@ -92,18 +101,36 @@ local function onSelectCard(player: Player, rollId: any, slot: any)
 	pending[player] = nil
 	nextRollAt[player] = os.clock() + Config.RollCooldown
 
-	local awarded = Inventory.award(player, cardId)
-	if not awarded then
+	local xp = Inventory.award(player, cardId)
+	if not xp then
 		warn(`[CardSystem] could not award "{cardId}" to {player.Name}`)
-		Remotes.SelectionResult:FireClient(player, false, nil, nil)
+		refuse()
 		return
 	end
 
-	Remotes.SelectionResult:FireClient(player, true, cardId, slot)
+	Remotes.SelectionResult:FireClient(player, true, cardId, slot, xp)
+	sync(player)
+end
+
+local function onEquipCard(player: Player, slot: any, cardId: any)
+	if typeof(slot) ~= "number" then
+		return
+	end
+	if cardId ~= nil and typeof(cardId) ~= "string" then
+		return
+	end
+
+	local ok, reason = Inventory.equip(player, slot, cardId)
+	if not ok then
+		Remotes.Notice:FireClient(player, reason or "Could not equip that", true)
+		return
+	end
+	sync(player)
 end
 
 local function onPlayerAdded(player: Player)
 	Inventory.load(player)
+	sync(player)
 end
 
 local function onPlayerRemoving(player: Player)
@@ -114,6 +141,7 @@ end
 
 Remotes.RequestRoll.OnServerEvent:Connect(onRequestRoll)
 Remotes.SelectCard.OnServerEvent:Connect(onSelectCard)
+Remotes.EquipCard.OnServerEvent:Connect(onEquipCard)
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
@@ -134,10 +162,12 @@ print(`[CardSystem] ready - {#Cards.List} cards, {Config.CardsPerRoll} per roll`
 				<ProtectedString name="Source"><![CDATA[--!strict
 --[[
 	Inventory
-	Counts what each player has pulled and mirrors the total into leaderstats.
+	The player's saved profile: what they own, their XP, and what sits on the
+	hotbar. Mirrors the headline numbers into leaderstats and hands the client
+	a snapshot to render.
 
 	Persistence is opt-in and best effort: every DataStore call is wrapped in
-	pcall, and a failure degrades to an in-memory session inventory rather than
+	pcall, and a failure degrades to an in-memory session profile rather than
 	breaking the roll flow. DataStore access requires a published place with
 	Studio API access enabled.
 ]]
@@ -149,15 +179,31 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Levels = require(CardSystem:WaitForChild("Levels"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
 
 local SAVE_ENABLED = true
-local STORE_NAME = "CardInventory_v1"
+local STORE_NAME = "CardInventory_v2"
 local LOAD_RETRIES = 3
 
 export type Record = {
 	Counts: { [string]: number },
+	Equipped: { [string]: string }, -- slot index (as a string key) -> card id
+	Xp: number,
 	Pity: number,
+	Rolls: number,
+}
+
+--[[
+	What the client gets. Equipped is sent as an array with holes filled by
+	false, because RemoteEvents drop nil holes in a table.
+]]
+export type Snapshot = {
+	Counts: { [string]: number },
+	Equipped: { string | boolean },
+	Xp: number,
+	Level: number,
 	Rolls: number,
 }
 
@@ -174,12 +220,12 @@ if SAVE_ENABLED then
 	if ok then
 		store = result
 	else
-		warn(`[CardSystem] DataStore unavailable, inventories are session only: {result}`)
+		warn(`[CardSystem] DataStore unavailable, profiles are session only: {result}`)
 	end
 end
 
 local function emptyRecord(): Record
-	return { Counts = {}, Pity = 0, Rolls = 0 }
+	return { Counts = {}, Equipped = {}, Xp = 0, Pity = 0, Rolls = 0 }
 end
 
 local function sanitise(raw: any): Record
@@ -196,11 +242,28 @@ local function sanitise(raw: any): Record
 			end
 		end
 	end
-	if typeof(raw.Pity) == "number" then
-		record.Pity = math.max(0, math.floor(raw.Pity))
+
+	if typeof(raw.Equipped) == "table" then
+		for slotKey, cardId in raw.Equipped do
+			local slot = tonumber(slotKey)
+			if
+				slot
+				and slot == math.floor(slot)
+				and slot >= 1
+				and slot <= Config.Hotbar.Slots
+				and typeof(cardId) == "string"
+				and Cards.get(cardId)
+				and (record.Counts[cardId] or 0) > 0
+			then
+				record.Equipped[tostring(slot)] = cardId
+			end
+		end
 	end
-	if typeof(raw.Rolls) == "number" then
-		record.Rolls = math.max(0, math.floor(raw.Rolls))
+
+	for _, key in { "Xp", "Pity", "Rolls" } do
+		if typeof(raw[key]) == "number" then
+			(record :: any)[key] = math.max(0, math.floor(raw[key]))
+		end
 	end
 	return record
 end
@@ -233,21 +296,49 @@ end
 
 local function refreshStats(player: Player)
 	local record = records[player]
-	if not record then
-		return
-	end
 	local stats = player:FindFirstChild("leaderstats")
-	if not stats then
+	if not record or not stats then
 		return
 	end
+
 	local cardsStat = stats:FindFirstChild("Cards") :: IntValue?
 	if cardsStat then
 		cardsStat.Value = totalCards(record)
+	end
+	local levelStat = stats:FindFirstChild("Level") :: IntValue?
+	if levelStat then
+		levelStat.Value = Levels.progress(record.Xp).Level
 	end
 	local bestStat = stats:FindFirstChild("Best") :: StringValue?
 	if bestStat then
 		bestStat.Value = bestRarityName(record)
 	end
+end
+
+function Inventory.snapshot(player: Player): Snapshot?
+	local record = records[player]
+	if not record then
+		return nil
+	end
+
+	local counts = {}
+	for cardId, count in record.Counts do
+		counts[cardId] = count
+	end
+
+	-- false marks an empty slot; a nil would collapse the array in transit.
+	local equipped: { string | boolean } = {}
+	for slot = 1, Config.Hotbar.Slots do
+		equipped[slot] = record.Equipped[tostring(slot)] or false
+	end
+
+	return {
+		Counts = counts,
+		Equipped = equipped,
+		Xp = record.Xp,
+		Level = Levels.progress(record.Xp).Level,
+		Rolls = record.Rolls,
+	}
 end
 
 function Inventory.load(player: Player)
@@ -265,7 +356,7 @@ function Inventory.load(player: Player)
 			if attempt == LOAD_RETRIES then
 				if not storeWarned then
 					storeWarned = true
-					warn(`[CardSystem] inventory load failed for {player.Name}: {result}`)
+					warn(`[CardSystem] profile load failed for {player.Name}: {result}`)
 				end
 			else
 				task.wait(attempt)
@@ -281,6 +372,10 @@ function Inventory.load(player: Player)
 
 	local stats = Instance.new("Folder")
 	stats.Name = "leaderstats"
+
+	local levelStat = Instance.new("IntValue")
+	levelStat.Name = "Level"
+	levelStat.Parent = stats
 
 	local cardsStat = Instance.new("IntValue")
 	cardsStat.Name = "Cards"
@@ -304,7 +399,7 @@ function Inventory.save(player: Player)
 	end)
 	if not ok and not storeWarned then
 		storeWarned = true
-		warn(`[CardSystem] inventory save failed for {player.Name}: {err}`)
+		warn(`[CardSystem] profile save failed for {player.Name}: {err}`)
 	end
 end
 
@@ -330,14 +425,88 @@ function Inventory.setPity(player: Player, value: number)
 	end
 end
 
-function Inventory.award(player: Player, cardId: string): boolean
+function Inventory.owns(player: Player, cardId: string): boolean
 	local record = records[player]
-	if not record or not Cards.get(cardId) then
-		return false
+	return record ~= nil and (record.Counts[cardId] or 0) > 0
+end
+
+function Inventory.level(player: Player): number
+	local record = records[player]
+	return if record then Levels.progress(record.Xp).Level else 1
+end
+
+--[[
+	Grants a card and the XP that comes with it.
+	Returns the xp awarded, or nil when the card could not be granted.
+]]
+function Inventory.award(player: Player, cardId: string): number?
+	local record = records[player]
+	local card = Cards.get(cardId)
+	if not record or not card then
+		return nil
 	end
+
 	record.Counts[cardId] = (record.Counts[cardId] or 0) + 1
+	local xp = Levels.xpForRarity(card.Rarity)
+	record.Xp += xp
 	refreshStats(player)
-	return true
+	return xp
+end
+
+--[[
+	Puts a card on a hotbar slot, or clears it when cardId is nil.
+	Returns ok plus a reason to show the player when it is refused.
+]]
+function Inventory.equip(player: Player, slot: number, cardId: string?): (boolean, string?)
+	local record = records[player]
+	if not record then
+		return false, "Profile still loading"
+	end
+	if slot ~= math.floor(slot) or slot < 1 or slot > Config.Hotbar.Slots then
+		return false, "No such slot"
+	end
+
+	local gate = Config.Hotbar.LevelGates[slot] or 1
+	if Levels.progress(record.Xp).Level < gate then
+		return false, `Slot unlocks at level {gate}`
+	end
+
+	if cardId == nil then
+		record.Equipped[tostring(slot)] = nil
+		return true, nil
+	end
+
+	if not Cards.get(cardId) then
+		return false, "Unknown card"
+	end
+	if (record.Counts[cardId] or 0) <= 0 then
+		return false, "You do not own that"
+	end
+
+	-- A card lives on one slot at a time.
+	for otherSlot, otherCard in record.Equipped do
+		if otherCard == cardId then
+			record.Equipped[otherSlot] = nil
+		end
+	end
+	record.Equipped[tostring(slot)] = cardId
+	return true, nil
+end
+
+-- The lowest slot the player can use that has nothing on it.
+function Inventory.firstFreeSlot(player: Player): number?
+	local record = records[player]
+	if not record then
+		return nil
+	end
+	local level = Levels.progress(record.Xp).Level
+	for slot = 1, Config.Hotbar.Slots do
+		local gate = Config.Hotbar.LevelGates[slot] or 1
+		if level >= gate and record.Equipped[tostring(slot)] == nil then
+			return slot
+		end
+	end
+	return nil
 end
 
 -- Flush everything on shutdown so a server close does not eat a pull.

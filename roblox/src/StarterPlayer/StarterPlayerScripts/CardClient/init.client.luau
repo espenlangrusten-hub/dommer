@@ -1,12 +1,11 @@
 --!strict
 --[[
 	CardSystem client
-	Owns the roll button, spawns the 3D hand in front of the camera, drives
-	every card from one render pass, and reports the player's pick to the
-	server.
+	Wires the pieces together: the roll button and the 3D hand, the hotbar and
+	level bar, the inventory panel, and the item showcase.
 
-	The client never decides what is rolled - it only renders what the server
-	sends and asks for a slot.
+	The client never decides what is rolled or what it owns - it renders the
+	profile the server sends and asks for changes.
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
@@ -14,16 +13,22 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
 local Remotes = require(CardSystem:WaitForChild("Remotes")).get()
 
 local CardVisual = require(script:WaitForChild("CardVisual"))
+local Hotbar = require(script:WaitForChild("Hotbar"))
+local InventoryUI = require(script:WaitForChild("InventoryUI"))
+local Profile = require(script:WaitForChild("Profile"))
 local RollUI = require(script:WaitForChild("RollUI"))
+local Showcase = require(script:WaitForChild("Showcase"))
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -32,10 +37,33 @@ local HAND_FOLDER_NAME = "CardHand"
 local RAY_LENGTH = 500
 local UNHOVERED_TILT = 0.5 -- neighbours tilt less than the card under the cursor
 
--- State ------------------------------------------------------------------
 type State = "idle" | "requesting" | "choosing" | "resolving" | "cooldown"
 
+--[[
+	The stock backpack occupies the same strip of screen as our hotbar. It can
+	refuse the call for the first frames after join, so keep asking briefly.
+]]
+if Config.HideDefaultBackpack then
+	task.spawn(function()
+		for _ = 1, 10 do
+			local ok = pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			end)
+			if ok then
+				return
+			end
+			task.wait(0.3)
+		end
+	end)
+end
+
+-- Panels -------------------------------------------------------------------
 local ui = RollUI.new()
+local hotbar = Hotbar.new()
+local inventory = InventoryUI.new()
+local showcase = Showcase.new()
+
+-- Roll state ---------------------------------------------------------------
 local visuals: { CardVisual.CardVisual } = {}
 local handFolder: Folder? = nil
 local state: State = "idle"
@@ -47,7 +75,7 @@ raycastParams.FilterType = Enum.RaycastFilterType.Include
 raycastParams.IgnoreWater = true
 raycastParams.FilterDescendantsInstances = {}
 
--- Helpers ----------------------------------------------------------------
+-- Helpers ------------------------------------------------------------------
 local function playSound(id: string)
 	if id == "" then
 		return
@@ -95,8 +123,7 @@ end
 -- Where the hand sits: frozen in world space at the moment of the roll, so
 -- the cards stay put if the player turns the camera.
 local function handOrigin(): CFrame
-	local cf = camera.CFrame
-	return cf * CFrame.new(0, Config.CameraHeightOffset, -Config.CameraDistance)
+	return camera.CFrame * CFrame.new(0, Config.CameraHeightOffset, -Config.CameraDistance)
 end
 
 local function spawnHand(cardIds: { string })
@@ -110,8 +137,7 @@ local function spawnHand(cardIds: { string })
 
 	local origin = handOrigin()
 	local eye = camera.CFrame.Position
-	local count = #cardIds
-	local middle = (count + 1) / 2
+	local middle = (#cardIds + 1) / 2
 
 	for slot, cardId in cardIds do
 		local card = Cards.get(cardId)
@@ -123,9 +149,7 @@ local function spawnHand(cardIds: { string })
 		local offset = (slot - middle) * Config.CardSpacing
 		local position = origin.Position + origin.RightVector * offset
 		-- lookAt puts the part's Front face (its -Z) toward the camera.
-		local base = CFrame.lookAt(position, eye)
-
-		table.insert(visuals, CardVisual.new(card, slot, base, folder))
+		table.insert(visuals, CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder))
 	end
 
 	refreshFilter()
@@ -149,7 +173,7 @@ local function cardUnderPoint(screenX: number, screenY: number): CardVisual.Card
 	return nil
 end
 
--- Roll -------------------------------------------------------------------
+-- Roll ---------------------------------------------------------------------
 local function requestRoll()
 	if state ~= "idle" then
 		return
@@ -172,8 +196,6 @@ local function requestRoll()
 	end)
 end
 
-ui.OnRoll = requestRoll
-
 local function selectCard(visual: CardVisual.CardVisual)
 	if state ~= "choosing" or activeRollId == nil then
 		return
@@ -187,7 +209,27 @@ local function selectCard(visual: CardVisual.CardVisual)
 	Remotes.SelectCard:FireServer(activeRollId, visual.Slot)
 end
 
--- Remote handlers --------------------------------------------------------
+local function returnToIdle(delay: number)
+	setState("cooldown")
+	local guard = currentTokenGuard()
+	ui:runCooldown(delay, guard)
+	task.delay(delay, function()
+		if guard() then
+			setState("idle")
+			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
+		end
+	end)
+end
+
+-- Remote handlers ----------------------------------------------------------
+Remotes.ProfileSync.OnClientEvent:Connect(function(snapshot: Profile.Snapshot)
+	Profile.set(snapshot)
+end)
+
+Remotes.Notice.OnClientEvent:Connect(function(text: string, isError: boolean?)
+	ui:showNotice(text, isError)
+end)
+
 Remotes.RollResult.OnClientEvent:Connect(function(rollId: number, cardIds: { string })
 	activeRollId = rollId
 	setState("choosing")
@@ -205,22 +247,14 @@ Remotes.RollRejected.OnClientEvent:Connect(function(reason: string, retryAfter: 
 
 	ui:setStatus(reason)
 	if retryAfter > 0.05 then
-		setState("cooldown")
-		local guard = currentTokenGuard()
-		ui:runCooldown(retryAfter, guard)
-		task.delay(retryAfter, function()
-			if guard() then
-				setState("idle")
-				ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-			end
-		end)
+		returnToIdle(retryAfter)
 	else
 		setState("idle")
 		ui:setEnabled(true)
 	end
 end)
 
-Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?)
+Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?, xp: number?)
 	if not ok then
 		-- Server refused the pick: hand the choice back rather than freezing.
 		if state == "resolving" then
@@ -239,34 +273,99 @@ Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: stri
 
 	if card then
 		local rarity = Rarities.get(card.Rarity)
-		ui:showBanner(card.Name, rarity)
+		ui:showBanner(card.Name, rarity, xp or 0)
 		playSound(if rarity.Sparkle then Config.Sounds.Rare else Config.Sounds.Select)
 	end
 
-	setState("cooldown")
-	local guard = currentTokenGuard()
 	ui:setStatus("Added to your collection")
-	ui:runCooldown(Config.RollCooldown, guard)
-	task.delay(Config.RollCooldown, function()
-		if guard() then
-			setState("idle")
-			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-		end
-	end)
+	returnToIdle(Config.RollCooldown)
 end)
 
--- Input ------------------------------------------------------------------
-UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
-	if gameProcessed or state ~= "choosing" then
+-- Panel wiring -------------------------------------------------------------
+Profile.onChanged(function()
+	hotbar:refresh()
+	if inventory.Open then
+		inventory:refresh()
+	end
+end)
+
+ui.OnRoll = requestRoll
+ui.OnInventory = function()
+	inventory:toggle()
+end
+
+inventory.OnView = function(cardId: string)
+	inventory:close()
+	showcase:show(cardId)
+end
+
+inventory.OnEquip = function(cardId: string)
+	-- Fill the selected slot when it is free, otherwise the first open one.
+	local slot = hotbar.Selected
+	if not Profile.isSlotUnlocked(slot) or Profile.equippedAt(slot) then
+		for index = 1, Config.Hotbar.Slots do
+			if Profile.isSlotUnlocked(index) and not Profile.equippedAt(index) then
+				slot = index
+				break
+			end
+		end
+	end
+	Remotes.EquipCard:FireServer(slot, cardId)
+end
+
+inventory.OnUnequip = function(cardId: string)
+	local slot = Profile.slotOf(cardId)
+	if slot then
+		Remotes.EquipCard:FireServer(slot, nil)
+	end
+end
+
+hotbar.OnSlotActivated = function(slot: number, cardId: string?, unlocked: boolean)
+	if not unlocked then
+		local gate = Config.Hotbar.LevelGates[slot] or 1
+		ui:showNotice(`Slot {slot} unlocks at level {gate}`, true)
 		return
 	end
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+	if cardId then
+		showcase:show(cardId)
+	end
+end
+
+showcase.OnClosed = function()
+	playSound(Config.Sounds.Close)
+end
+
+-- Input --------------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+
+	-- The showcase eats the next click wherever it lands.
+	if showcase.Open and isClick then
+		showcase:hide()
 		return
 	end
 
-	local visual = cardUnderPoint(input.Position.X, input.Position.Y)
-	if visual then
-		selectCard(visual)
+	if gameProcessed then
+		return
+	end
+
+	if isClick and state == "choosing" then
+		local visual = cardUnderPoint(input.Position.X, input.Position.Y)
+		if visual then
+			selectCard(visual)
+		end
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+
+	if input.KeyCode == Config.Keys.Inventory then
+		inventory:toggle()
+	elseif input.KeyCode == Enum.KeyCode.Escape and inventory.Open then
+		inventory:close()
 	end
 end)
 
@@ -275,9 +374,41 @@ ContextActionService:BindAction("CardSystemRoll", function(_, inputState: Enum.U
 		requestRoll()
 	end
 	return Enum.ContextActionResult.Pass
-end, false, Enum.KeyCode.R)
+end, false, Config.Keys.Roll)
 
--- Render -----------------------------------------------------------------
+-- Number keys pick a hotbar slot.
+local hotbarKeys = {
+	Enum.KeyCode.One,
+	Enum.KeyCode.Two,
+	Enum.KeyCode.Three,
+	Enum.KeyCode.Four,
+	Enum.KeyCode.Five,
+	Enum.KeyCode.Six,
+}
+
+ContextActionService:BindAction("CardSystemHotbar", function(_, inputState: Enum.UserInputState, inputObject: InputObject)
+	if inputState ~= Enum.UserInputState.Begin then
+		return Enum.ContextActionResult.Pass
+	end
+	local index = table.find(hotbarKeys, inputObject.KeyCode)
+	if index then
+		hotbar:activate(index)
+	end
+	return Enum.ContextActionResult.Pass
+end, false, table.unpack(hotbarKeys))
+
+-- Screen fit ---------------------------------------------------------------
+local function applyScale()
+	local factor = Theme.scaleFor(camera.ViewportSize.Y)
+	ui:setScale(factor)
+	hotbar:setScale(factor)
+	inventory:setScale(factor)
+end
+
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
+applyScale()
+
+-- Render -------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt: number)
 	if #visuals == 0 then
 		return
@@ -342,6 +473,7 @@ local function repositionHand()
 end
 
 player.CharacterAdded:Connect(function(character: Model)
+	showcase:hide()
 	if state ~= "choosing" then
 		return
 	end
@@ -354,3 +486,4 @@ player.CharacterAdded:Connect(function(character: Model)
 end)
 
 ui:setEnabled(true)
+hotbar:refresh()

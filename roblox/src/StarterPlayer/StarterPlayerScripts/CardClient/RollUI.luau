@@ -1,8 +1,11 @@
 --!strict
 --[[
 	RollUI
-	Bottom-centre ROLL button, a status line above it, an odds strip, and the
-	"you got X" banner shown after a pick.
+	The ROLL button and its odds strip, plus the inventory button on the left
+	edge and the one-line notice toast.
+
+	The button sits above the hotbar rather than on the bottom edge, so the
+	two never overlap.
 ]]
 
 local Players = game:GetService("Players")
@@ -12,30 +15,15 @@ local TweenService = game:GetService("TweenService")
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local make = Theme.make
+local L = Config.Layout
 
 local IDLE_COLOR = Color3.fromRGB(96, 132, 255)
 local BUSY_COLOR = Color3.fromRGB(58, 62, 78)
 local BUTTON_WIDTH = 236
 local BUTTON_HEIGHT = 62
-
-local function make(className: string, props: { [string]: any }, children: { any }?): any
-	local instance = Instance.new(className)
-	local parent = props.Parent
-	for key, value in props do
-		if key ~= "Parent" then
-			(instance :: any)[key] = value
-		end
-	end
-	if children then
-		for _, child in children do
-			child.Parent = instance
-		end
-	end
-	if parent then
-		instance.Parent = parent
-	end
-	return instance
-end
 
 local RollUI = {}
 RollUI.__index = RollUI
@@ -43,25 +31,30 @@ RollUI.__index = RollUI
 export type RollUI = typeof(setmetatable(
 	{} :: {
 		Gui: ScreenGui,
+		Scale: UIScale,
 		Button: TextButton,
 		ButtonLabel: TextLabel,
 		Status: TextLabel,
+		InventoryButton: TextButton,
 		Banner: Frame,
 		BannerLabel: TextLabel,
+		Notice: TextLabel,
 		Stroke: UIStroke,
 		Enabled: boolean,
 		OnRoll: (() -> ())?,
+		OnInventory: (() -> ())?,
 	},
 	RollUI
 ))
 
-local function buildOdds(): Frame
+local function buildOdds(parent: Instance): Frame
 	local row = make("Frame", {
 		Name = "Odds",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -6),
-		Size = UDim2.new(0, 540, 0, 18),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + 8),
+		Size = UDim2.new(0, 560, 0, 18),
+		Parent = parent,
 	}, {
 		make("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -78,24 +71,93 @@ local function buildOdds(): Frame
 			then `{rarity.Name} {string.format("%.0f", percent)}%`
 			else `{rarity.Name} {string.format("%.2f", percent)}%`
 
-		make("TextLabel", {
+		Theme.label({
 			Name = rarity.Id,
 			LayoutOrder = index,
-			BackgroundTransparency = 1,
 			AutomaticSize = Enum.AutomaticSize.X,
 			Size = UDim2.new(0, 0, 1, 0),
-			Font = Enum.Font.GothamMedium,
+			TextScaled = false,
+			TextSize = 13,
 			Text = text,
-			TextSize = 12,
 			TextColor3 = rarity.TextColor,
-			TextTransparency = 0.25,
 			Parent = row,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.55 }),
-		})
+		}, 2)
 	end
 
 	return row
+end
+
+-- The square icon tile on the left edge, like the reference side menu.
+local function buildSideButton(parent: Instance): TextButton
+	local size = L.SideButton
+
+	local button = make("TextButton", {
+		Name = "InventoryButton",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.42, 0),
+		Size = UDim2.fromOffset(size, size + 16),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}) :: TextButton
+
+	local tile = Theme.slotFrame({
+		Name = "Tile",
+		Size = UDim2.fromOffset(size, size),
+	}, Color3.fromRGB(120, 90, 255)) :: Frame
+	tile.Parent = button
+
+	-- A small bag drawn from two rounded frames.
+	make("Frame", {
+		Name = "BagBody",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.82),
+		Size = UDim2.fromScale(0.6, 0.44),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Parent = tile,
+	}, {
+		Theme.corner(6),
+		Theme.stroke(Theme.Colors.Outline, 2),
+	})
+
+	make("Frame", {
+		Name = "BagHandle",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.44),
+		Size = UDim2.fromScale(0.32, 0.3),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	}, {
+		Theme.corner(999),
+		Theme.stroke(Color3.new(1, 1, 1), 4),
+	})
+
+	Theme.label({
+		Name = "Caption",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(size + 20, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = "Items",
+		Parent = button,
+	}, 2.5)
+
+	-- The keybind hint above the tile.
+	Theme.label({
+		Name = "Key",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 2, 0, 2),
+		Size = UDim2.fromOffset(16, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = Config.Keys.Inventory.Name,
+		Parent = button,
+	}, 2)
+
+	return button
 end
 
 function RollUI.new(): RollUI
@@ -109,121 +171,127 @@ function RollUI.new(): RollUI
 		DisplayOrder = 10,
 	}) :: ScreenGui
 
+	local scaleHost = make("Frame", {
+		Name = "ScaleHost",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = scaleHost }) :: UIScale
+
+	-- Roll button sits above the hotbar, not on the bottom edge.
 	local dock = make("Frame", {
 		Name = "Dock",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.new(0, 560, 0, 132),
-		Parent = gui,
+		Position = UDim2.new(0.5, 0, 1, -L.RollBottom),
+		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + 52),
+		Parent = scaleHost,
 	})
 
-	local status = make("TextLabel", {
+	local status = Theme.label({
 		Name = "Status",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		Size = UDim2.new(1, 0, 0, 20),
-		Font = Enum.Font.GothamMedium,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -4),
+		Size = UDim2.fromOffset(560, 20),
+		TextScaled = false,
+		TextSize = 16,
 		Text = "",
-		TextSize = 15,
-		TextColor3 = Color3.fromRGB(226, 230, 240),
 		Parent = dock,
-	}, {
-		make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.4 }),
-	}) :: TextLabel
+	}, 2.5)
 
-	local buttonLabel = make("TextLabel", {
+	local buttonLabel = Theme.label({
 		Name = "Label",
-		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Font = Enum.Font.GothamBold,
+		TextScaled = false,
+		TextSize = 28,
 		Text = "ROLL",
-		TextSize = 26,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-	}) :: TextLabel
+	}, 3.5)
 
-	local stroke = make("UIStroke", {
-		Color = Color3.fromRGB(150, 180, 255),
-		Thickness = 2,
-		Transparency = 0.2,
-	}) :: UIStroke
+	local stroke = Theme.stroke(Theme.Colors.Outline, 3)
 
 	local button = make("TextButton", {
 		Name = "RollButton",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 28),
-		Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_HEIGHT),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.fromOffset(BUTTON_WIDTH, BUTTON_HEIGHT),
 		BackgroundColor3 = IDLE_COLOR,
 		AutoButtonColor = false,
 		Text = "",
 		Parent = dock,
 	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 14) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 195, 215)),
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.7),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-		}),
+		Theme.corner(14),
+		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(178, 184, 206)),
 		stroke,
 		buttonLabel,
 	}) :: TextButton
 
-	buildOdds().Parent = dock
+	buildOdds(dock)
+	local sideButton = buildSideButton(scaleHost)
 
-	local bannerLabel = make("TextLabel", {
+	local bannerLabel = Theme.label({
 		Name = "Label",
-		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Font = Enum.Font.GothamBold,
+		TextScaled = false,
+		TextSize = 22,
 		Text = "",
-		TextSize = 20,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-	}, {
-		make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.4 }),
-	}) :: TextLabel
+	}, 3)
 
-	local banner = make("Frame", {
+	local banner = Theme.panel({
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 74),
-		Size = UDim2.new(0, 380, 0, 52),
-		BackgroundColor3 = Color3.fromRGB(14, 15, 20),
-		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(400, 54),
 		Visible = false,
-		Parent = gui,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		make("UIStroke", { Name = "Edge", Color = Color3.fromRGB(255, 255, 255), Thickness = 2, Transparency = 1 }),
-		bannerLabel,
-	}) :: Frame
+		Parent = scaleHost,
+	}, Color3.new(1, 1, 1), { bannerLabel })
+
+	local notice = Theme.label({
+		Name = "Notice",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 140),
+		Size = UDim2.fromOffset(520, 24),
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Visible = false,
+		Parent = scaleHost,
+	}, 3)
 
 	gui.Parent = playerGui
 
 	local self = setmetatable({
 		Gui = gui,
+		Scale = scale,
 		Button = button,
 		ButtonLabel = buttonLabel,
 		Status = status,
+		InventoryButton = sideButton,
 		Banner = banner,
 		BannerLabel = bannerLabel,
+		Notice = notice,
 		Stroke = stroke,
 		Enabled = true,
 		OnRoll = nil,
+		OnInventory = nil,
 	}, RollUI)
 
 	button.MouseButton1Click:Connect(function()
 		if self.Enabled and self.OnRoll then
-			self.OnRoll()
+			(self.OnRoll :: any)()
 		end
 	end)
 
-	local function scaleTo(scale: number)
+	sideButton.MouseButton1Click:Connect(function()
+		if self.OnInventory then
+			(self.OnInventory :: any)()
+		end
+	end)
+
+	local function scaleTo(factor: number)
 		TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(0, math.floor(BUTTON_WIDTH * scale), 0, math.floor(BUTTON_HEIGHT * scale)),
+			Size = UDim2.fromOffset(math.floor(BUTTON_WIDTH * factor), math.floor(BUTTON_HEIGHT * factor)),
 		}):Play()
 	end
 
@@ -249,6 +317,10 @@ function RollUI.new(): RollUI
 	return (self :: any) :: RollUI
 end
 
+function RollUI.setScale(self: RollUI, factor: number)
+	self.Scale.Scale = factor
+end
+
 function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
 	local changed = self.Enabled ~= enabled
 	self.Enabled = enabled
@@ -261,7 +333,7 @@ function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
 		TweenService:Create(self.Button, TweenInfo.new(0.18), {
 			BackgroundColor3 = if enabled then IDLE_COLOR else BUSY_COLOR,
 		}):Play()
-		self.Stroke.Transparency = if enabled then 0.2 else 0.75
+		self.Stroke.Transparency = if enabled then 0 else 0.45
 	end
 end
 
@@ -290,29 +362,50 @@ function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> bool
 	end)
 end
 
-function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity)
+function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity, xp: number)
 	local banner = self.Banner
-	local edge = banner:FindFirstChild("Edge") :: UIStroke
-	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}`
+	local edge = banner:FindFirstChildOfClass("UIStroke")
+	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}  +{xp} XP`
 	self.BannerLabel.TextColor3 = rarity.TextColor
-	edge.Color = rarity.Color
+	if edge then
+		edge.Color = rarity.Color
+	end
+
 	banner.Visible = true
 	banner.BackgroundTransparency = 1
 	self.BannerLabel.TextTransparency = 1
-	edge.Transparency = 1
 
 	local inInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(banner, inInfo, { BackgroundTransparency = 0.15 }):Play()
+	TweenService:Create(banner, inInfo, { BackgroundTransparency = 0.05 }):Play()
 	TweenService:Create(self.BannerLabel, inInfo, { TextTransparency = 0 }):Play()
-	TweenService:Create(edge, inInfo, { Transparency = 0.1 }):Play()
 
 	task.delay(2.4, function()
 		local outInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		TweenService:Create(banner, outInfo, { BackgroundTransparency = 1 }):Play()
 		TweenService:Create(self.BannerLabel, outInfo, { TextTransparency = 1 }):Play()
-		local fade = TweenService:Create(edge, outInfo, { Transparency = 1 })
+		local fade = TweenService:Create(banner, outInfo, { BackgroundTransparency = 1 })
 		fade.Completed:Connect(function()
 			banner.Visible = false
+		end)
+		fade:Play()
+	end)
+end
+
+-- One-line toast for server messages like a locked hotbar slot.
+function RollUI.showNotice(self: RollUI, text: string, isError: boolean?)
+	self.Notice.Text = text
+	self.Notice.TextColor3 = if isError then Theme.Colors.Danger else Theme.Colors.Text
+	self.Notice.Visible = true
+	self.Notice.TextTransparency = 0
+
+	task.delay(2.2, function()
+		if self.Notice.Text ~= text then
+			return -- a newer notice took over
+		end
+		local fade = TweenService:Create(self.Notice, TweenInfo.new(0.3), { TextTransparency = 1 })
+		fade.Completed:Connect(function()
+			if self.Notice.Text == text then
+				self.Notice.Visible = false
+			end
 		end)
 		fade:Play()
 	end)

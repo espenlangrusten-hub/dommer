@@ -7,12 +7,11 @@
 			<ProtectedString name="Source"><![CDATA[--!strict
 --[[
 	CardSystem client
-	Owns the roll button, spawns the 3D hand in front of the camera, drives
-	every card from one render pass, and reports the player's pick to the
-	server.
+	Wires the pieces together: the roll button and the 3D hand, the hotbar and
+	level bar, the inventory panel, and the item showcase.
 
-	The client never decides what is rolled - it only renders what the server
-	sends and asks for a slot.
+	The client never decides what is rolled or what it owns - it renders the
+	profile the server sends and asks for changes.
 ]]
 
 local ContextActionService = game:GetService("ContextActionService")
@@ -20,16 +19,22 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
 local UserInputService = game:GetService("UserInputService")
 
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
 local Remotes = require(CardSystem:WaitForChild("Remotes")).get()
 
 local CardVisual = require(script:WaitForChild("CardVisual"))
+local Hotbar = require(script:WaitForChild("Hotbar"))
+local InventoryUI = require(script:WaitForChild("InventoryUI"))
+local Profile = require(script:WaitForChild("Profile"))
 local RollUI = require(script:WaitForChild("RollUI"))
+local Showcase = require(script:WaitForChild("Showcase"))
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -38,10 +43,33 @@ local HAND_FOLDER_NAME = "CardHand"
 local RAY_LENGTH = 500
 local UNHOVERED_TILT = 0.5 -- neighbours tilt less than the card under the cursor
 
--- State ------------------------------------------------------------------
 type State = "idle" | "requesting" | "choosing" | "resolving" | "cooldown"
 
+--[[
+	The stock backpack occupies the same strip of screen as our hotbar. It can
+	refuse the call for the first frames after join, so keep asking briefly.
+]]
+if Config.HideDefaultBackpack then
+	task.spawn(function()
+		for _ = 1, 10 do
+			local ok = pcall(function()
+				StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			end)
+			if ok then
+				return
+			end
+			task.wait(0.3)
+		end
+	end)
+end
+
+-- Panels -------------------------------------------------------------------
 local ui = RollUI.new()
+local hotbar = Hotbar.new()
+local inventory = InventoryUI.new()
+local showcase = Showcase.new()
+
+-- Roll state ---------------------------------------------------------------
 local visuals: { CardVisual.CardVisual } = {}
 local handFolder: Folder? = nil
 local state: State = "idle"
@@ -53,7 +81,7 @@ raycastParams.FilterType = Enum.RaycastFilterType.Include
 raycastParams.IgnoreWater = true
 raycastParams.FilterDescendantsInstances = {}
 
--- Helpers ----------------------------------------------------------------
+-- Helpers ------------------------------------------------------------------
 local function playSound(id: string)
 	if id == "" then
 		return
@@ -101,8 +129,7 @@ end
 -- Where the hand sits: frozen in world space at the moment of the roll, so
 -- the cards stay put if the player turns the camera.
 local function handOrigin(): CFrame
-	local cf = camera.CFrame
-	return cf * CFrame.new(0, Config.CameraHeightOffset, -Config.CameraDistance)
+	return camera.CFrame * CFrame.new(0, Config.CameraHeightOffset, -Config.CameraDistance)
 end
 
 local function spawnHand(cardIds: { string })
@@ -116,8 +143,7 @@ local function spawnHand(cardIds: { string })
 
 	local origin = handOrigin()
 	local eye = camera.CFrame.Position
-	local count = #cardIds
-	local middle = (count + 1) / 2
+	local middle = (#cardIds + 1) / 2
 
 	for slot, cardId in cardIds do
 		local card = Cards.get(cardId)
@@ -129,9 +155,7 @@ local function spawnHand(cardIds: { string })
 		local offset = (slot - middle) * Config.CardSpacing
 		local position = origin.Position + origin.RightVector * offset
 		-- lookAt puts the part's Front face (its -Z) toward the camera.
-		local base = CFrame.lookAt(position, eye)
-
-		table.insert(visuals, CardVisual.new(card, slot, base, folder))
+		table.insert(visuals, CardVisual.new(card, slot, CFrame.lookAt(position, eye), folder))
 	end
 
 	refreshFilter()
@@ -155,7 +179,7 @@ local function cardUnderPoint(screenX: number, screenY: number): CardVisual.Card
 	return nil
 end
 
--- Roll -------------------------------------------------------------------
+-- Roll ---------------------------------------------------------------------
 local function requestRoll()
 	if state ~= "idle" then
 		return
@@ -178,8 +202,6 @@ local function requestRoll()
 	end)
 end
 
-ui.OnRoll = requestRoll
-
 local function selectCard(visual: CardVisual.CardVisual)
 	if state ~= "choosing" or activeRollId == nil then
 		return
@@ -193,7 +215,27 @@ local function selectCard(visual: CardVisual.CardVisual)
 	Remotes.SelectCard:FireServer(activeRollId, visual.Slot)
 end
 
--- Remote handlers --------------------------------------------------------
+local function returnToIdle(delay: number)
+	setState("cooldown")
+	local guard = currentTokenGuard()
+	ui:runCooldown(delay, guard)
+	task.delay(delay, function()
+		if guard() then
+			setState("idle")
+			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
+		end
+	end)
+end
+
+-- Remote handlers ----------------------------------------------------------
+Remotes.ProfileSync.OnClientEvent:Connect(function(snapshot: Profile.Snapshot)
+	Profile.set(snapshot)
+end)
+
+Remotes.Notice.OnClientEvent:Connect(function(text: string, isError: boolean?)
+	ui:showNotice(text, isError)
+end)
+
 Remotes.RollResult.OnClientEvent:Connect(function(rollId: number, cardIds: { string })
 	activeRollId = rollId
 	setState("choosing")
@@ -211,22 +253,14 @@ Remotes.RollRejected.OnClientEvent:Connect(function(reason: string, retryAfter: 
 
 	ui:setStatus(reason)
 	if retryAfter > 0.05 then
-		setState("cooldown")
-		local guard = currentTokenGuard()
-		ui:runCooldown(retryAfter, guard)
-		task.delay(retryAfter, function()
-			if guard() then
-				setState("idle")
-				ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-			end
-		end)
+		returnToIdle(retryAfter)
 	else
 		setState("idle")
 		ui:setEnabled(true)
 	end
 end)
 
-Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?)
+Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: string?, slot: number?, xp: number?)
 	if not ok then
 		-- Server refused the pick: hand the choice back rather than freezing.
 		if state == "resolving" then
@@ -245,34 +279,99 @@ Remotes.SelectionResult.OnClientEvent:Connect(function(ok: boolean, cardId: stri
 
 	if card then
 		local rarity = Rarities.get(card.Rarity)
-		ui:showBanner(card.Name, rarity)
+		ui:showBanner(card.Name, rarity, xp or 0)
 		playSound(if rarity.Sparkle then Config.Sounds.Rare else Config.Sounds.Select)
 	end
 
-	setState("cooldown")
-	local guard = currentTokenGuard()
 	ui:setStatus("Added to your collection")
-	ui:runCooldown(Config.RollCooldown, guard)
-	task.delay(Config.RollCooldown, function()
-		if guard() then
-			setState("idle")
-			ui:setStatus(`Roll for {Config.CardsPerRoll} cards`)
-		end
-	end)
+	returnToIdle(Config.RollCooldown)
 end)
 
--- Input ------------------------------------------------------------------
-UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
-	if gameProcessed or state ~= "choosing" then
+-- Panel wiring -------------------------------------------------------------
+Profile.onChanged(function()
+	hotbar:refresh()
+	if inventory.Open then
+		inventory:refresh()
+	end
+end)
+
+ui.OnRoll = requestRoll
+ui.OnInventory = function()
+	inventory:toggle()
+end
+
+inventory.OnView = function(cardId: string)
+	inventory:close()
+	showcase:show(cardId)
+end
+
+inventory.OnEquip = function(cardId: string)
+	-- Fill the selected slot when it is free, otherwise the first open one.
+	local slot = hotbar.Selected
+	if not Profile.isSlotUnlocked(slot) or Profile.equippedAt(slot) then
+		for index = 1, Config.Hotbar.Slots do
+			if Profile.isSlotUnlocked(index) and not Profile.equippedAt(index) then
+				slot = index
+				break
+			end
+		end
+	end
+	Remotes.EquipCard:FireServer(slot, cardId)
+end
+
+inventory.OnUnequip = function(cardId: string)
+	local slot = Profile.slotOf(cardId)
+	if slot then
+		Remotes.EquipCard:FireServer(slot, nil)
+	end
+end
+
+hotbar.OnSlotActivated = function(slot: number, cardId: string?, unlocked: boolean)
+	if not unlocked then
+		local gate = Config.Hotbar.LevelGates[slot] or 1
+		ui:showNotice(`Slot {slot} unlocks at level {gate}`, true)
 		return
 	end
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+	if cardId then
+		showcase:show(cardId)
+	end
+end
+
+showcase.OnClosed = function()
+	playSound(Config.Sounds.Close)
+end
+
+-- Input --------------------------------------------------------------------
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+
+	-- The showcase eats the next click wherever it lands.
+	if showcase.Open and isClick then
+		showcase:hide()
 		return
 	end
 
-	local visual = cardUnderPoint(input.Position.X, input.Position.Y)
-	if visual then
-		selectCard(visual)
+	if gameProcessed then
+		return
+	end
+
+	if isClick and state == "choosing" then
+		local visual = cardUnderPoint(input.Position.X, input.Position.Y)
+		if visual then
+			selectCard(visual)
+		end
+		return
+	end
+
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+
+	if input.KeyCode == Config.Keys.Inventory then
+		inventory:toggle()
+	elseif input.KeyCode == Enum.KeyCode.Escape and inventory.Open then
+		inventory:close()
 	end
 end)
 
@@ -281,9 +380,41 @@ ContextActionService:BindAction("CardSystemRoll", function(_, inputState: Enum.U
 		requestRoll()
 	end
 	return Enum.ContextActionResult.Pass
-end, false, Enum.KeyCode.R)
+end, false, Config.Keys.Roll)
 
--- Render -----------------------------------------------------------------
+-- Number keys pick a hotbar slot.
+local hotbarKeys = {
+	Enum.KeyCode.One,
+	Enum.KeyCode.Two,
+	Enum.KeyCode.Three,
+	Enum.KeyCode.Four,
+	Enum.KeyCode.Five,
+	Enum.KeyCode.Six,
+}
+
+ContextActionService:BindAction("CardSystemHotbar", function(_, inputState: Enum.UserInputState, inputObject: InputObject)
+	if inputState ~= Enum.UserInputState.Begin then
+		return Enum.ContextActionResult.Pass
+	end
+	local index = table.find(hotbarKeys, inputObject.KeyCode)
+	if index then
+		hotbar:activate(index)
+	end
+	return Enum.ContextActionResult.Pass
+end, false, table.unpack(hotbarKeys))
+
+-- Screen fit ---------------------------------------------------------------
+local function applyScale()
+	local factor = Theme.scaleFor(camera.ViewportSize.Y)
+	ui:setScale(factor)
+	hotbar:setScale(factor)
+	inventory:setScale(factor)
+end
+
+camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyScale)
+applyScale()
+
+-- Render -------------------------------------------------------------------
 RunService.RenderStepped:Connect(function(dt: number)
 	if #visuals == 0 then
 		return
@@ -348,6 +479,7 @@ local function repositionHand()
 end
 
 player.CharacterAdded:Connect(function(character: Model)
+	showcase:hide()
 	if state ~= "choosing" then
 		return
 	end
@@ -360,6 +492,7 @@ player.CharacterAdded:Connect(function(character: Model)
 end)
 
 ui:setEnabled(true)
+hotbar:refresh()
 ]]></ProtectedString>
 		</Properties>
 		<Item class="ModuleScript" referent="RBX2">
@@ -381,11 +514,11 @@ local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Cards = require(CardSystem:WaitForChild("Cards"))
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
 
 type Card = Cards.Card
 
 local BACKDROP = Color3.fromRGB(16, 17, 22)
-local PANEL = Color3.fromRGB(26, 28, 36)
 
 -- Easing -----------------------------------------------------------------
 local function clamp01(n: number): number
@@ -409,239 +542,171 @@ local function lerp(a: number, b: number, t: number): number
 	return a + (b - a) * t
 end
 
--- Instance helper --------------------------------------------------------
-local function make(className: string, props: { [string]: any }, children: { any }?): any
-	local instance = Instance.new(className)
-	local parent = props.Parent
-	for key, value in props do
-		if key ~= "Parent" then
-			(instance :: any)[key] = value
-		end
-	end
-	if children then
-		for _, child in children do
-			child.Parent = instance
-		end
-	end
-	-- Parent last: setting it first makes Roblox replicate every later property.
-	if parent then
-		instance.Parent = parent
-	end
-	return instance
-end
-
 -- Face building ----------------------------------------------------------
-local function diagonalSheen(): Instance
-	-- The soft X-fold shading the reference cards use.
-	return make("Frame", {
-		Name = "Sheen",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-	}, {
-		make("Frame", {
-			Name = "A",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1.6, 0.5),
-			Rotation = 34,
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-			BackgroundTransparency = 0.94,
-			BorderSizePixel = 0,
-		}),
-		make("Frame", {
-			Name = "B",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(1.6, 0.5),
-			Rotation = -34,
-			BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-			BackgroundTransparency = 0.94,
-			BorderSizePixel = 0,
-		}),
-	})
-end
+local make = Theme.make
 
+--[[
+	The card face. Everything here is fully opaque once the entrance finishes:
+	a saturated rarity backdrop, a large icon, and heavy black outlines on
+	every string, so the card reads at a glance instead of washing out against
+	the sky.
+]]
 local function buildFront(card: Card, rarity: Rarities.Rarity): CanvasGroup
-	local iconHolder: Instance
-	if card.Icon ~= "" then
-		iconHolder = make("ImageLabel", {
-			Name = "Icon",
-			BackgroundTransparency = 1,
-			Image = card.Icon,
-			ScaleType = Enum.ScaleType.Fit,
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.07),
-			Size = UDim2.fromScale(0.64, 0.3),
-		})
-	else
-		-- No art yet: draw the card's initial so the layout still reads.
-		iconHolder = make("TextLabel", {
-			Name = "Icon",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.07),
-			Size = UDim2.fromScale(0.64, 0.3),
-			Font = Enum.Font.GothamBold,
-			Text = string.upper(string.sub(card.Name, 1, 1)),
-			TextColor3 = rarity.Color,
-			TextScaled = true,
-			TextTransparency = 0.25,
-		})
+	local top, bottom = Theme.rarityBackdrop(rarity.Color)
+
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(rarity.Color, 7),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
 	end
 
-	return make("CanvasGroup", {
-		Name = "Face",
-		BackgroundColor3 = PANEL,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		GroupTransparency = 1,
-		ClipsDescendants = true,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0.04, 0) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, Color3.fromRGB(44, 46, 58)),
-				ColorSequenceKeypoint.new(0.55, Color3.fromRGB(22, 23, 30)),
-				ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 16)),
-			}),
-		}),
-		make("UIStroke", {
-			Name = "Border",
-			Color = rarity.Color,
-			Thickness = 5,
-			Transparency = 0.05,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}),
-		diagonalSheen(),
-		-- Rarity wash behind the icon.
+	-- Rarity band behind the icon, solid rather than a faint wash.
+	table.insert(
+		children,
 		make("Frame", {
-			Name = "Wash",
-			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.82,
+			Name = "Band",
+			BackgroundColor3 = rarity.Color:Lerp(Color3.new(0, 0, 0), 0.22),
 			BorderSizePixel = 0,
-			Size = UDim2.fromScale(1, 0.42),
+			Size = UDim2.fromScale(1, 0.44),
 		}, {
-			make("UIGradient", {
-				Rotation = 90,
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.35),
-					NumberSequenceKeypoint.new(1, 1),
-				}),
-			}),
-		}),
-		iconHolder,
-		make("TextLabel", {
+			Theme.gradient(
+				rarity.Color:Lerp(Color3.new(1, 1, 1), 0.15),
+				rarity.Color:Lerp(Color3.new(0, 0, 0), 0.45)
+			),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.05),
+			Size = UDim2.fromScale(0.66, 0.34),
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "CardName",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.4),
-			Size = UDim2.fromScale(0.88, 0.09),
-			Font = Enum.Font.GothamBold,
+			Position = UDim2.fromScale(0.5, 0.45),
+			Size = UDim2.fromScale(0.9, 0.1),
 			Text = card.Name,
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			TextScaled = true,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.45 }),
-		}),
-		make("TextLabel", {
+		}, 4)
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "RarityLabel",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.505),
-			Size = UDim2.fromScale(0.8, 0.07),
-			Font = Enum.Font.GothamBold,
+			Position = UDim2.fromScale(0.5, 0.56),
+			Size = UDim2.fromScale(0.82, 0.075),
 			Text = rarity.Name,
 			TextColor3 = rarity.TextColor,
-			TextScaled = true,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.5 }),
-		}),
+		}, 4)
+	)
+
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Divider",
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.6),
-			Size = UDim2.fromScale(0.6, 0.006),
+			Position = UDim2.fromScale(0.5, 0.65),
+			Size = UDim2.fromScale(0.62, 0.008),
 			BackgroundColor3 = rarity.Color,
-			BackgroundTransparency = 0.4,
 			BorderSizePixel = 0,
-		}),
-		make("TextLabel", {
+		})
+	)
+
+	table.insert(
+		children,
+		Theme.label({
 			Name = "Flavor",
-			BackgroundTransparency = 1,
 			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromScale(0.5, 0.63),
-			Size = UDim2.fromScale(0.82, 0.16),
-			Font = Enum.Font.SourceSansItalic,
+			Position = UDim2.fromScale(0.5, 0.675),
+			Size = UDim2.fromScale(0.84, 0.15),
 			Text = card.Flavor,
-			TextColor3 = Color3.fromRGB(214, 218, 228),
-			TextScaled = true,
+			TextColor3 = Color3.fromRGB(236, 240, 248),
 			TextWrapped = true,
-		}),
-		-- Footer call to action.
+			TextScaled = false,
+			TextSize = 34,
+		}, 3)
+	)
+
+	-- Footer call to action.
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Footer",
 			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.fromScale(0.5, 0.955),
-			Size = UDim2.fromScale(0.72, 0.075),
-			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-			BackgroundTransparency = 0.35,
+			Position = UDim2.fromScale(0.5, 0.96),
+			Size = UDim2.fromScale(0.76, 0.085),
+			BackgroundColor3 = Color3.fromRGB(10, 11, 15),
 			BorderSizePixel = 0,
 		}, {
-			make("UICorner", { CornerRadius = UDim.new(0.3, 0) }),
-			make("UIStroke", { Color = rarity.Color, Thickness = 2, Transparency = 0.55 }),
-			make("TextLabel", {
+			Theme.corner(999),
+			Theme.stroke(rarity.Color, 3),
+			Theme.label({
 				Name = "Prompt",
-				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
-				Font = Enum.Font.GothamMedium,
 				Text = "Click to Select",
-				TextColor3 = Color3.fromRGB(236, 239, 245),
-				TextScaled = true,
-			}, {
-				make("UIPadding", {
-					PaddingTop = UDim.new(0.2, 0),
-					PaddingBottom = UDim.new(0.2, 0),
-				}),
-			}),
-		}),
-	})
-end
+			}, 3),
+		})
+	)
 
-local function buildBack(): CanvasGroup
 	return make("CanvasGroup", {
-		Name = "Back",
-		BackgroundColor3 = Color3.fromRGB(20, 21, 28),
+		Name = "Face",
+		BackgroundColor3 = top,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
 		GroupTransparency = 1,
 		ClipsDescendants = true,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0.04, 0) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.fromRGB(38, 40, 52), Color3.fromRGB(12, 12, 17)),
-		}),
-		make("UIStroke", {
-			Color = Color3.fromRGB(92, 98, 116),
-			Thickness = 4,
-			Transparency = 0.3,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		}),
-		diagonalSheen(),
+	}, children)
+end
+
+local function buildBack(): CanvasGroup
+	local children: { any } = {
+		Theme.corner(10),
+		Theme.gradient(Color3.fromRGB(40, 43, 56), Color3.fromRGB(13, 14, 19)),
+		Theme.stroke(Color3.fromRGB(120, 128, 150), 6),
+	}
+
+	local dots = Theme.dots()
+	if dots then
+		table.insert(children, dots)
+	end
+
+	table.insert(
+		children,
 		make("Frame", {
 			Name = "Emblem",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromScale(0.34, 0.24),
+			Size = UDim2.fromScale(0.36, 0.26),
 			Rotation = 45,
-			BackgroundColor3 = Color3.fromRGB(120, 128, 150),
-			BackgroundTransparency = 0.75,
+			BackgroundColor3 = Color3.fromRGB(140, 148, 172),
+			BackgroundTransparency = 0.55,
 			BorderSizePixel = 0,
 		}, {
-			make("UIStroke", { Color = Color3.fromRGB(160, 168, 190), Thickness = 2, Transparency = 0.5 }),
-		}),
-	})
+			Theme.stroke(Color3.fromRGB(190, 198, 220), 3),
+		})
+	)
+
+	return make("CanvasGroup", {
+		Name = "Back",
+		BackgroundColor3 = Color3.fromRGB(22, 23, 30),
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		GroupTransparency = 1,
+		ClipsDescendants = true,
+	}, children)
 end
 
 -- Class ------------------------------------------------------------------
@@ -699,7 +764,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = Config.PixelsPerStud,
 		LightInfluence = 0,
-		Brightness = 1.4,
+		Brightness = 1.9,
 		MaxDistance = 250,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = part,
@@ -711,7 +776,7 @@ function CardVisual.new(card: Card, slot: number, baseCFrame: CFrame, parent: In
 		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
 		PixelsPerStud = Config.PixelsPerStud,
 		LightInfluence = 0,
-		Brightness = 1.2,
+		Brightness = 1.6,
 		MaxDistance = 250,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = part,
@@ -879,12 +944,1180 @@ return CardVisual
 		</Item>
 		<Item class="ModuleScript" referent="RBX3">
 			<Properties>
+				<string name="Name">Hotbar</string>
+				<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Hotbar
+	Six slots along the bottom of the screen with the level bar underneath,
+	laid out like the reference UI: the first three open from level 1, the
+	last three gated behind levels and drawn with a padlock.
+
+	Number keys 1-6 select a slot. Selection is cosmetic here - it is the hook
+	you use when you give equipped cards an in-game effect.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local L = Config.Layout
+
+type SlotViews = {
+	Button: TextButton,
+	Surface: Frame,
+	Stroke: UIStroke,
+	Icon: GuiObject?,
+	KeyFrame: Frame,
+	NameLabel: TextLabel,
+	CountLabel: TextLabel,
+	Lock: Frame,
+	LockLabel: TextLabel,
+	Content: Frame,
+}
+
+local Hotbar = {}
+Hotbar.__index = Hotbar
+
+export type Hotbar = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		Scale: UIScale,
+		Slots: { SlotViews },
+		XpFill: Frame,
+		XpLabel: TextLabel,
+		Selected: number,
+		OnSlotActivated: ((slot: number, cardId: string?, unlocked: boolean) -> ())?,
+	},
+	Hotbar
+))
+
+local function buildSlot(index: number, parent: Instance): SlotViews
+	local size = L.HotbarSlot
+
+	local button = make("TextButton", {
+		Name = `Slot{index}`,
+		LayoutOrder = index,
+		Size = UDim2.fromOffset(size, size),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}) :: TextButton
+
+	local surface = Theme.slotFrame({
+		Name = "Surface",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(1, 1),
+	}, Theme.Colors.SlotEmpty) :: Frame
+	surface.Parent = button
+
+	local stroke = surface:FindFirstChildOfClass("UIStroke") :: UIStroke
+
+	-- Everything that only shows on a filled slot.
+	local content = make("Frame", {
+		Name = "Content",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Visible = false,
+		Parent = surface,
+	}) :: Frame
+
+	local nameLabel = Theme.label({
+		Name = "ItemName",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.98),
+		Size = UDim2.fromScale(0.94, 0.19),
+		Text = "",
+		Parent = content,
+	}, 3)
+
+	local countLabel = Theme.label({
+		Name = "Count",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.8),
+		Size = UDim2.fromScale(0.9, 0.2),
+		Text = "",
+		TextColor3 = Theme.Colors.Count,
+		Parent = content,
+	}, 3)
+
+	-- The key number badge, top left, like the level badge in the reference.
+	local keyFrame = make("Frame", {
+		Name = "KeyBadge",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromScale(0.05, 0.05),
+		Size = UDim2.fromScale(0.28, 0.28),
+		BackgroundColor3 = Color3.fromRGB(12, 13, 17),
+		BackgroundTransparency = 0.15,
+		BorderSizePixel = 0,
+		Parent = surface,
+	}, {
+		Theme.corner(6),
+		Theme.stroke(Theme.Colors.Outline, 2),
+	})
+
+	Theme.label({
+		Name = "Key",
+		Size = UDim2.fromScale(1, 1),
+		Text = tostring(index),
+		Parent = keyFrame,
+	}, 2)
+
+	local lock = Theme.lockIcon({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.44),
+		Size = UDim2.fromScale(0.46, 0.46),
+		Visible = false,
+		Parent = surface,
+	})
+
+	local lockLabel = Theme.label({
+		Name = "LockLabel",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.97),
+		Size = UDim2.fromScale(1, 0.26),
+		Text = "",
+		Visible = false,
+		Parent = surface,
+	}, 3)
+
+	return {
+		Button = button,
+		Surface = surface,
+		Stroke = stroke,
+		Icon = nil,
+		KeyFrame = keyFrame,
+		NameLabel = nameLabel,
+		CountLabel = countLabel,
+		Lock = lock,
+		LockLabel = lockLabel,
+		Content = content,
+	}
+end
+
+function Hotbar.new(): Hotbar
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = make("ScreenGui", {
+		Name = "CardHotbar",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 8,
+	}) :: ScreenGui
+
+	local root = make("Frame", {
+		Name = "Root",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.new(0, L.XpBarWidth, 0, L.HotbarBottom + L.HotbarSlot + 20),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = root }) :: UIScale
+
+	-- Slot row.
+	local row = make("Frame", {
+		Name = "Slots",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -L.HotbarBottom),
+		Size = UDim2.fromOffset(
+			Config.Hotbar.Slots * L.HotbarSlot + (Config.Hotbar.Slots - 1) * L.HotbarGap,
+			L.HotbarSlot
+		),
+		Parent = root,
+	}, {
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, L.HotbarGap),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local slots: { SlotViews } = {}
+	for index = 1, Config.Hotbar.Slots do
+		slots[index] = buildSlot(index, row)
+	end
+
+	-- Level bar.
+	local track = Theme.panel({
+		Name = "XpBar",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -L.XpBarBottom),
+		Size = UDim2.fromOffset(L.XpBarWidth, L.XpBarHeight),
+		BackgroundColor3 = Theme.Colors.XpTrack,
+		Parent = root,
+	}, Color3.fromRGB(0, 0, 0))
+	local trackStroke = track:FindFirstChildOfClass("UIStroke") :: UIStroke
+	trackStroke.Thickness = 2.5
+
+	local fill = make("Frame", {
+		Name = "Fill",
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Theme.Colors.XpFillA,
+		BorderSizePixel = 0,
+		Parent = track,
+	}, {
+		Theme.corner(10),
+		Theme.gradient(Theme.Colors.XpFillA, Theme.Colors.XpFillB, 0),
+	}) :: Frame
+
+	local xpLabel = Theme.label({
+		Name = "XpLabel",
+		Size = UDim2.fromScale(1, 1),
+		Text = "Level: 1 (0/15 XP)",
+		TextScaled = false,
+		TextSize = 15,
+		Parent = track,
+	}, 2.5)
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		Scale = scale,
+		Slots = slots,
+		XpFill = fill,
+		XpLabel = xpLabel,
+		Selected = 1,
+		OnSlotActivated = nil,
+	}, Hotbar)
+
+	for index, slot in slots do
+		slot.Button.MouseButton1Click:Connect(function()
+			self:activate(index)
+		end)
+		slot.Button.MouseEnter:Connect(function()
+			TweenService:Create(slot.Surface, TweenInfo.new(0.12), {
+				Size = UDim2.fromScale(1.06, 1.06),
+			}):Play()
+		end)
+		slot.Button.MouseLeave:Connect(function()
+			TweenService:Create(slot.Surface, TweenInfo.new(0.12), {
+				Size = UDim2.fromScale(1, 1),
+			}):Play()
+		end)
+	end
+
+	self:refresh()
+	return (self :: any) :: Hotbar
+end
+
+function Hotbar.activate(self: Hotbar, index: number)
+	local unlocked = Profile.isSlotUnlocked(index)
+	if unlocked then
+		self.Selected = index
+		self:refresh()
+	end
+	if self.OnSlotActivated then
+		(self.OnSlotActivated :: any)(index, Profile.equippedAt(index), unlocked)
+	end
+end
+
+function Hotbar.setScale(self: Hotbar, scale: number)
+	self.Scale.Scale = scale
+end
+
+-- Redraws every slot and the level bar from the current profile.
+function Hotbar.refresh(self: Hotbar)
+	local progress = Profile.progress()
+
+	for index, views in self.Slots do
+		local gate = Config.Hotbar.LevelGates[index] or 1
+		local unlocked = progress.Level >= gate
+		local cardId = Profile.equippedAt(index)
+		local card = if cardId then Cards.get(cardId) else nil
+
+		if views.Icon then
+			views.Icon:Destroy()
+			views.Icon = nil
+		end
+
+		if not unlocked then
+			views.Surface.BackgroundColor3 = Theme.Colors.SlotLocked
+			views.Stroke.Color = Color3.new(1, 1, 1)
+			views.Stroke.Transparency = 0.15
+			views.Content.Visible = false
+			views.KeyFrame.Visible = false
+			views.Lock.Visible = true
+			views.LockLabel.Visible = true
+			views.LockLabel.Text = `Lvl {gate}+`
+		elseif card then
+			local rarity = Rarities.get(card.Rarity)
+			local top = select(1, Theme.rarityBackdrop(rarity.Color))
+			views.Surface.BackgroundColor3 = top
+			views.Stroke.Color = rarity.Color
+			views.Stroke.Transparency = 0
+			views.Lock.Visible = false
+			views.LockLabel.Visible = false
+			views.KeyFrame.Visible = true
+			views.Content.Visible = true
+			views.NameLabel.Text = card.Name
+			views.CountLabel.Text = `x{Profile.count(card.Id)}`
+
+			views.Icon = Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.fromScale(0.5, 0.14),
+				Size = UDim2.fromScale(0.62, 0.44),
+				Parent = views.Surface,
+			})
+		else
+			views.Surface.BackgroundColor3 = Theme.Colors.SlotEmpty
+			views.Stroke.Color = Color3.fromRGB(90, 96, 112)
+			views.Stroke.Transparency = 0.2
+			views.Content.Visible = false
+			views.Lock.Visible = false
+			views.LockLabel.Visible = false
+			views.KeyFrame.Visible = true
+		end
+
+		-- Selection reads as a brighter, thicker edge.
+		local selected = unlocked and index == self.Selected
+		views.Stroke.Thickness = if selected then 5 else 3
+		views.Surface.Position = if selected
+			then UDim2.new(0.5, 0, 0.5, -4)
+			else UDim2.fromScale(0.5, 0.5)
+	end
+
+	local needed = if progress.Needed > 0 then progress.Needed else progress.IntoLevel
+	self.XpLabel.Text = `Level: {progress.Level} ({progress.IntoLevel}/{needed} XP)`
+	TweenService:Create(self.XpFill, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+		Size = UDim2.fromScale(progress.Fraction, 1),
+	}):Play()
+end
+
+return Hotbar
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX4">
+			<Properties>
+				<string name="Name">InventoryUI</string>
+				<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	InventoryUI
+	The panel from the reference clip: angled green header banner, red close
+	button, a coloured tab strip, a search field, and a scrolling grid of
+	tinted item slots with a gold count in the corner.
+
+	Hovering a slot raises a tooltip with the name, rarity, description and
+	the buttons for viewing and equipping the item.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Categories = require(CardSystem:WaitForChild("Categories"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local INV = Config.Inventory
+
+local function panelWidth(): number
+	return INV.Columns * INV.SlotSize + (INV.Columns - 1) * INV.SlotGap + INV.PanelPadding * 2
+end
+
+local function gridHeight(): number
+	return INV.VisibleRows * INV.SlotSize + (INV.VisibleRows - 1) * INV.SlotGap
+end
+
+type SlotViews = {
+	Button: TextButton,
+	Surface: Frame,
+	Stroke: UIStroke,
+	Count: TextLabel,
+	Icon: GuiObject?,
+	CardId: string?,
+}
+
+local InventoryUI = {}
+InventoryUI.__index = InventoryUI
+
+export type InventoryUI = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		Scale: UIScale,
+		Root: Frame,
+		Grid: ScrollingFrame,
+		Search: TextBox,
+		Tabs: { [string]: TextButton },
+		Slots: { SlotViews },
+		EmptyLabel: TextLabel,
+		Tooltip: Frame,
+		TipName: TextLabel,
+		TipRarity: TextLabel,
+		TipBody: TextLabel,
+		TipOwned: TextLabel,
+		ViewButton: TextButton,
+		EquipButton: TextButton,
+		Category: string,
+		Query: string,
+		HoveredCard: string?,
+		Open: boolean,
+		OnView: ((cardId: string) -> ())?,
+		OnEquip: ((cardId: string) -> ())?,
+		OnUnequip: ((cardId: string) -> ())?,
+		OnClosed: (() -> ())?,
+	},
+	InventoryUI
+))
+
+-- Header ------------------------------------------------------------------
+local function buildHeader(parent: Instance): Frame
+	local header = make("Frame", {
+		Name = "Header",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, -18),
+		Size = UDim2.new(1, 0, 0, 44),
+		Parent = parent,
+	})
+
+	-- The angled banner behind the title.
+	local banner = make("Frame", {
+		Name = "Banner",
+		BackgroundColor3 = Theme.Colors.HeaderLight,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(-6, 0),
+		Size = UDim2.new(0, 250, 1, 0),
+		Rotation = -1.2,
+		Parent = header,
+	}, {
+		Theme.corner(8),
+		Theme.gradient(Theme.Colors.HeaderLight, Theme.Colors.HeaderDark),
+		Theme.stroke(Theme.Colors.Outline, 2.5),
+	})
+
+	Theme.label({
+		Name = "Title",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.06, 0.5),
+		Size = UDim2.fromScale(0.9, 0.62),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "Inventory",
+		Parent = banner,
+	}, 3.5)
+
+	-- The little angled shards to the right of the banner.
+	for index = 1, 3 do
+		make("Frame", {
+			Name = `Shard{index}`,
+			BackgroundColor3 = Theme.Colors.HeaderLight,
+			BorderSizePixel = 0,
+			Rotation = -22,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 244 + index * 26, 0.5, 0),
+			Size = UDim2.fromOffset(14, 30),
+			Parent = header,
+		}, {
+			Theme.corner(3),
+			Theme.gradient(Theme.Colors.HeaderLight, Theme.Colors.HeaderDark),
+			Theme.stroke(Theme.Colors.Outline, 2),
+		})
+	end
+
+	return header
+end
+
+local function buildCloseButton(parent: Instance): TextButton
+	local button = make("TextButton", {
+		Name = "Close",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(1, -2, 0, -6),
+		Size = UDim2.fromOffset(46, 46),
+		BackgroundColor3 = Theme.Colors.Close,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}, {
+		Theme.corner(999),
+		Theme.stroke(Theme.Colors.CloseDark, 3),
+		Theme.label({
+			Name = "X",
+			Size = UDim2.fromScale(0.72, 0.72),
+			Position = UDim2.fromScale(0.14, 0.14),
+			Text = "X",
+		}, 3),
+	}) :: TextButton
+	return button
+end
+
+-- Slots -------------------------------------------------------------------
+local function buildSlot(index: number, parent: Instance): SlotViews
+	local button = make("TextButton", {
+		Name = `Slot{index}`,
+		LayoutOrder = index,
+		Size = UDim2.fromOffset(INV.SlotSize, INV.SlotSize),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Visible = false,
+		Parent = parent,
+	}) :: TextButton
+
+	local surface = Theme.slotFrame({
+		Name = "Surface",
+		Size = UDim2.fromScale(1, 1),
+	}, Theme.Colors.SlotEmpty) :: Frame
+	surface.Parent = button
+
+	local count = Theme.label({
+		Name = "Count",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.fromScale(0.96, 0.98),
+		Size = UDim2.fromScale(0.62, 0.26),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextColor3 = Theme.Colors.Count,
+		Text = "",
+		Parent = surface,
+	}, 3)
+
+	return {
+		Button = button,
+		Surface = surface,
+		Stroke = surface:FindFirstChildOfClass("UIStroke") :: UIStroke,
+		Count = count,
+		Icon = nil,
+		CardId = nil,
+	}
+end
+
+-- Tooltip -----------------------------------------------------------------
+local function buildTooltip(parent: Instance): (Frame, TextLabel, TextLabel, TextLabel, TextLabel, TextButton, TextButton)
+	local tip = Theme.panel({
+		Name = "Tooltip",
+		Size = UDim2.fromOffset(230, 168),
+		Visible = false,
+		ZIndex = 50,
+		Parent = parent,
+	}, Color3.fromRGB(70, 74, 90))
+	tip.BackgroundTransparency = 0.05
+
+	local name = Theme.label({
+		Name = "ItemName",
+		Position = UDim2.fromOffset(12, 10),
+		Size = UDim2.new(1, -24, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2.5)
+
+	local rarity = Theme.label({
+		Name = "Rarity",
+		Position = UDim2.fromOffset(12, 32),
+		Size = UDim2.new(1, -24, 0, 16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 14,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local body = Theme.label({
+		Name = "Body",
+		Position = UDim2.fromOffset(12, 52),
+		Size = UDim2.new(1, -24, 0, 40),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		TextScaled = false,
+		TextSize = 14,
+		TextColor3 = Theme.Colors.TextDim,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local owned = Theme.label({
+		Name = "Owned",
+		Position = UDim2.fromOffset(12, 94),
+		Size = UDim2.new(1, -24, 0, 16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 14,
+		TextColor3 = Theme.Colors.Count,
+		Text = "",
+		ZIndex = 51,
+		Parent = tip,
+	}, 2)
+
+	local view = Theme.pill({
+		Name = "View",
+		Position = UDim2.fromOffset(12, 118),
+		Size = UDim2.fromOffset(96, 34),
+		ZIndex = 51,
+		Parent = tip,
+	}, Theme.Colors.Equip, "View")
+
+	local equip = Theme.pill({
+		Name = "Equip",
+		Position = UDim2.new(1, -108, 0, 118),
+		Size = UDim2.fromOffset(96, 34),
+		ZIndex = 51,
+		Parent = tip,
+	}, Theme.Colors.PanelBorder, "Equip")
+
+	return tip, name, rarity, body, owned, view, equip
+end
+
+-- Construction ------------------------------------------------------------
+function InventoryUI.new(): InventoryUI
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	local width = panelWidth()
+
+	local gui = make("ScreenGui", {
+		Name = "CardInventory",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 12,
+		Enabled = false,
+	}) :: ScreenGui
+
+	local holder = make("Frame", {
+		Name = "Holder",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.46),
+		Size = UDim2.fromOffset(width, 1),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = holder }) :: UIScale
+
+	-- Search field above the panel, like the reference.
+	local searchBox = Theme.panel({
+		Name = "Search",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -46),
+		Size = UDim2.fromOffset(width - 60, 34),
+		BackgroundColor3 = Theme.Colors.Search,
+		Parent = holder,
+	}, Color3.fromRGB(58, 62, 76))
+
+	Theme.searchIcon({
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 10, 0.5, 0),
+		Size = UDim2.fromOffset(18, 18),
+		Parent = searchBox,
+	})
+
+	local search = make("TextBox", {
+		Name = "Input",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(36, 0),
+		Size = UDim2.new(1, -46, 1, 0),
+		Font = Theme.Font,
+		Text = "",
+		PlaceholderText = "Search..",
+		PlaceholderColor3 = Theme.Colors.TextDim,
+		TextColor3 = Theme.Colors.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextSize = 16,
+		ClearTextOnFocus = false,
+		Parent = searchBox,
+	}) :: TextBox
+
+	-- The panel body.
+	local tabHeight = 34
+	local headerRoom = 16
+	local bodyHeight = headerRoom + tabHeight + gridHeight() + INV.PanelPadding * 3
+
+	local root = Theme.panel({
+		Name = "Panel",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(width, bodyHeight),
+		Parent = holder,
+	}) :: Frame
+
+	buildHeader(root)
+	local close = buildCloseButton(root)
+
+	-- Tab strip.
+	local tabRow = make("Frame", {
+		Name = "Tabs",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(INV.PanelPadding, INV.PanelPadding + 16),
+		Size = UDim2.new(1, -INV.PanelPadding * 2, 0, tabHeight),
+		Parent = root,
+	}, {
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			VerticalAlignment = Enum.VerticalAlignment.Center,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local tabCount = #Categories.List + 1
+	local tabWidth = math.floor((panelWidth() - INV.PanelPadding * 2 - (tabCount - 1) * 6) / tabCount)
+
+	local tabs: { [string]: TextButton } = {}
+	tabs[Categories.AllId] = Theme.pill({
+		Name = Categories.AllId,
+		LayoutOrder = 1,
+		Size = UDim2.fromOffset(tabWidth, tabHeight),
+		Parent = tabRow,
+	}, Categories.AllColor, "All")
+
+	for index, category in Categories.List do
+		tabs[category.Id] = Theme.pill({
+			Name = category.Id,
+			LayoutOrder = index + 1,
+			Size = UDim2.fromOffset(tabWidth, tabHeight),
+			Parent = tabRow,
+		}, category.Color, category.Name)
+	end
+
+	-- Item grid.
+	local grid = make("ScrollingFrame", {
+		Name = "Grid",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(INV.PanelPadding, INV.PanelPadding * 2 + tabHeight + 16),
+		Size = UDim2.new(1, -INV.PanelPadding * 2, 0, gridHeight()),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Theme.Colors.PanelBorder,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = root,
+	}, {
+		make("UIGridLayout", {
+			CellSize = UDim2.fromOffset(INV.SlotSize, INV.SlotSize),
+			CellPadding = UDim2.fromOffset(INV.SlotGap, INV.SlotGap),
+			FillDirectionMaxCells = INV.Columns,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	}) :: ScrollingFrame
+
+	-- One button per catalogue entry, shown or hidden as the filter changes.
+	local slots: { SlotViews } = {}
+	for index = 1, #Cards.List do
+		slots[index] = buildSlot(index, grid)
+	end
+
+	local empty = Theme.label({
+		Name = "Empty",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(360, 30),
+		TextScaled = false,
+		TextSize = 18,
+		TextColor3 = Theme.Colors.TextDim,
+		Text = "Nothing here yet - go roll some cards",
+		Visible = false,
+		Parent = root,
+	}, 2)
+
+	local tip, tipName, tipRarity, tipBody, tipOwned, viewButton, equipButton = buildTooltip(gui)
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		Scale = scale,
+		Root = root,
+		Grid = grid,
+		Search = search,
+		Tabs = tabs,
+		Slots = slots,
+		EmptyLabel = empty,
+		Tooltip = tip,
+		TipName = tipName,
+		TipRarity = tipRarity,
+		TipBody = tipBody,
+		TipOwned = tipOwned,
+		ViewButton = viewButton,
+		EquipButton = equipButton,
+		Category = Categories.AllId,
+		Query = "",
+		HoveredCard = nil,
+		Open = false,
+		OnView = nil,
+		OnEquip = nil,
+		OnUnequip = nil,
+		OnClosed = nil,
+	}, InventoryUI)
+
+	close.MouseButton1Click:Connect(function()
+		self:close()
+	end)
+
+	for id, button in tabs do
+		button.MouseButton1Click:Connect(function()
+			self.Category = id
+			self:refresh()
+		end)
+	end
+
+	search:GetPropertyChangedSignal("Text"):Connect(function()
+		self.Query = string.lower(search.Text)
+		self:refresh()
+	end)
+
+	for _, views in slots do
+		views.Button.MouseEnter:Connect(function()
+			if views.CardId then
+				self:showTooltip(views.CardId)
+			end
+		end)
+		views.Button.MouseLeave:Connect(function()
+			self:hideTooltip()
+		end)
+		views.Button.MouseButton1Click:Connect(function()
+			if views.CardId and self.OnView then
+				(self.OnView :: any)(views.CardId)
+			end
+		end)
+	end
+
+	viewButton.MouseButton1Click:Connect(function()
+		local cardId = self.HoveredCard
+		if cardId and self.OnView then
+			(self.OnView :: any)(cardId)
+		end
+	end)
+
+	equipButton.MouseButton1Click:Connect(function()
+		local cardId = self.HoveredCard
+		if not cardId then
+			return
+		end
+		if Profile.slotOf(cardId) then
+			if self.OnUnequip then
+				(self.OnUnequip :: any)(cardId)
+			end
+		elseif self.OnEquip then
+			(self.OnEquip :: any)(cardId)
+		end
+	end)
+
+	RunService.Heartbeat:Connect(function()
+		if self.Tooltip.Visible then
+			self:moveTooltip()
+		end
+	end)
+
+	return (self :: any) :: InventoryUI
+end
+
+-- Behaviour ---------------------------------------------------------------
+function InventoryUI.setScale(self: InventoryUI, scale: number)
+	self.Scale.Scale = scale
+end
+
+function InventoryUI.showTooltip(self: InventoryUI, cardId: string)
+	local card = Cards.get(cardId)
+	if not card then
+		return
+	end
+	local rarity = Rarities.get(card.Rarity)
+
+	self.HoveredCard = cardId
+	self.TipName.Text = card.Name
+	self.TipRarity.Text = rarity.Name
+	self.TipRarity.TextColor3 = rarity.TextColor
+	self.TipBody.Text = card.Description
+	self.TipOwned.Text = `Owned: {Profile.count(cardId)}x`
+
+	local equipLabel = self.EquipButton:FindFirstChild("Label") :: TextLabel
+	equipLabel.Text = if Profile.slotOf(cardId) then "Unequip" else "Equip"
+
+	local stroke = self.Tooltip:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = rarity.Color
+	end
+
+	self.Tooltip.Visible = true
+	self:moveTooltip()
+end
+
+function InventoryUI.moveTooltip(self: InventoryUI)
+	if not self.Tooltip.Visible then
+		return
+	end
+	local mouse = UserInputService:GetMouseLocation()
+	local camera = workspace.CurrentCamera
+	local viewport = camera.ViewportSize
+	local size = self.Tooltip.AbsoluteSize
+
+	-- Flip the tooltip when it would run off the screen edge.
+	local x = mouse.X + 16
+	if x + size.X > viewport.X - 8 then
+		x = mouse.X - size.X - 16
+	end
+	local y = mouse.Y + 12
+	if y + size.Y > viewport.Y - 8 then
+		y = viewport.Y - size.Y - 8
+	end
+
+	self.Tooltip.Position = UDim2.fromOffset(x, y)
+end
+
+function InventoryUI.hideTooltip(self: InventoryUI)
+	self.Tooltip.Visible = false
+	self.HoveredCard = nil
+end
+
+-- Repaints every slot from the profile, the active tab and the search text.
+function InventoryUI.refresh(self: InventoryUI)
+	for id, button in self.Tabs do
+		local active = id == self.Category
+		button.BackgroundTransparency = if active then 0 else 0.45
+		local stroke = button:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Thickness = if active then 3.5 else 2
+		end
+	end
+
+	local owned = Profile.ownedSorted(function(cardId: string): number
+		local card = Cards.get(cardId)
+		return if card then Rarities.get(card.Rarity).Rank else 0
+	end)
+
+	local shown = 0
+	for _, entry in owned do
+		local card = Cards.get(entry.Id)
+		if not card then
+			continue
+		end
+		if self.Category ~= Categories.AllId and card.Category ~= self.Category then
+			continue
+		end
+		if self.Query ~= "" and not string.find(string.lower(card.Name), self.Query, 1, true) then
+			continue
+		end
+
+		shown += 1
+		local views = self.Slots[shown]
+		if not views then
+			break -- more owned entries than catalogue slots should not happen
+		end
+
+		local rarity = Rarities.get(card.Rarity)
+		local top = select(1, Theme.rarityBackdrop(rarity.Color))
+
+		views.CardId = card.Id
+		views.Button.Visible = true
+		views.Button.LayoutOrder = shown
+		views.Surface.BackgroundColor3 = top
+		views.Stroke.Color = rarity.Color
+		views.Count.Text = `x{entry.Count}`
+
+		if views.Icon then
+			views.Icon:Destroy()
+		end
+		views.Icon = Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.44),
+			Size = UDim2.fromScale(0.6, 0.5),
+			Parent = views.Surface,
+		})
+	end
+
+	for index = shown + 1, #self.Slots do
+		local views = self.Slots[index]
+		views.Button.Visible = false
+		views.CardId = nil
+	end
+
+	self.EmptyLabel.Visible = shown == 0
+
+	if self.HoveredCard and not Profile.owns(self.HoveredCard) then
+		self:hideTooltip()
+	elseif self.HoveredCard then
+		self:showTooltip(self.HoveredCard)
+	end
+end
+
+function InventoryUI.open(self: InventoryUI)
+	self.Open = true
+	self.Gui.Enabled = true
+	self:refresh()
+
+	local scale = make("UIScale", { Scale = 0.9, Parent = self.Root }) :: UIScale
+	local tween = TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Scale = 1,
+	})
+	tween.Completed:Connect(function()
+		scale:Destroy()
+	end)
+	tween:Play()
+end
+
+function InventoryUI.close(self: InventoryUI)
+	self.Open = false
+	self.Gui.Enabled = false
+	self:hideTooltip()
+	if self.OnClosed then
+		(self.OnClosed :: any)()
+	end
+end
+
+function InventoryUI.toggle(self: InventoryUI)
+	if self.Open then
+		self:close()
+	else
+		self:open()
+	end
+end
+
+return InventoryUI
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX5">
+			<Properties>
+				<string name="Name">Profile</string>
+				<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Profile
+	The client's copy of what the server says the player owns. Every panel
+	reads from here instead of tracking its own state, so the hotbar, the
+	inventory and the showcase can never disagree.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Config = require(CardSystem:WaitForChild("Config"))
+local Levels = require(CardSystem:WaitForChild("Levels"))
+
+export type Snapshot = {
+	Counts: { [string]: number },
+	Equipped: { string | boolean },
+	Xp: number,
+	Level: number,
+	Rolls: number,
+}
+
+local Profile = {}
+
+local current: Snapshot = {
+	Counts = {},
+	Equipped = {},
+	Xp = 0,
+	Level = 1,
+	Rolls = 0,
+}
+
+local listeners: { (Snapshot) -> () } = {}
+
+function Profile.get(): Snapshot
+	return current
+end
+
+function Profile.set(snapshot: Snapshot)
+	current = snapshot
+	for _, listener in listeners do
+		task.spawn(listener, snapshot)
+	end
+end
+
+-- Returns a function that stops the subscription.
+function Profile.onChanged(listener: (Snapshot) -> ()): () -> ()
+	table.insert(listeners, listener)
+	return function()
+		local index = table.find(listeners, listener)
+		if index then
+			table.remove(listeners, index)
+		end
+	end
+end
+
+function Profile.count(cardId: string): number
+	return current.Counts[cardId] or 0
+end
+
+function Profile.owns(cardId: string): boolean
+	return Profile.count(cardId) > 0
+end
+
+-- The card on a hotbar slot, or nil when the slot is empty.
+function Profile.equippedAt(slot: number): string?
+	local value = current.Equipped[slot]
+	return if typeof(value) == "string" then value else nil
+end
+
+function Profile.slotOf(cardId: string): number?
+	for slot = 1, Config.Hotbar.Slots do
+		if Profile.equippedAt(slot) == cardId then
+			return slot
+		end
+	end
+	return nil
+end
+
+function Profile.isSlotUnlocked(slot: number): boolean
+	local gate = Config.Hotbar.LevelGates[slot] or 1
+	return current.Level >= gate
+end
+
+function Profile.progress(): Levels.Progress
+	return Levels.progress(current.Xp)
+end
+
+-- Owned cards, sorted rarest first and then by name, for the inventory grid.
+function Profile.ownedSorted(rank: (string) -> number): { { Id: string, Count: number } }
+	local out = {}
+	for cardId, count in current.Counts do
+		if count > 0 then
+			table.insert(out, { Id = cardId, Count = count })
+		end
+	end
+	table.sort(out, function(a, b)
+		local rankA, rankB = rank(a.Id), rank(b.Id)
+		if rankA ~= rankB then
+			return rankA > rankB
+		end
+		return a.Id < b.Id
+	end)
+	return out
+end
+
+return Profile
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX6">
+			<Properties>
 				<string name="Name">RollUI</string>
 				<ProtectedString name="Source"><![CDATA[--!strict
 --[[
 	RollUI
-	Bottom-centre ROLL button, a status line above it, an odds strip, and the
-	"you got X" banner shown after a pick.
+	The ROLL button and its odds strip, plus the inventory button on the left
+	edge and the one-line notice toast.
+
+	The button sits above the hotbar rather than on the bottom edge, so the
+	two never overlap.
 ]]
 
 local Players = game:GetService("Players")
@@ -894,30 +2127,15 @@ local TweenService = game:GetService("TweenService")
 local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
 local Config = require(CardSystem:WaitForChild("Config"))
 local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local make = Theme.make
+local L = Config.Layout
 
 local IDLE_COLOR = Color3.fromRGB(96, 132, 255)
 local BUSY_COLOR = Color3.fromRGB(58, 62, 78)
 local BUTTON_WIDTH = 236
 local BUTTON_HEIGHT = 62
-
-local function make(className: string, props: { [string]: any }, children: { any }?): any
-	local instance = Instance.new(className)
-	local parent = props.Parent
-	for key, value in props do
-		if key ~= "Parent" then
-			(instance :: any)[key] = value
-		end
-	end
-	if children then
-		for _, child in children do
-			child.Parent = instance
-		end
-	end
-	if parent then
-		instance.Parent = parent
-	end
-	return instance
-end
 
 local RollUI = {}
 RollUI.__index = RollUI
@@ -925,25 +2143,30 @@ RollUI.__index = RollUI
 export type RollUI = typeof(setmetatable(
 	{} :: {
 		Gui: ScreenGui,
+		Scale: UIScale,
 		Button: TextButton,
 		ButtonLabel: TextLabel,
 		Status: TextLabel,
+		InventoryButton: TextButton,
 		Banner: Frame,
 		BannerLabel: TextLabel,
+		Notice: TextLabel,
 		Stroke: UIStroke,
 		Enabled: boolean,
 		OnRoll: (() -> ())?,
+		OnInventory: (() -> ())?,
 	},
 	RollUI
 ))
 
-local function buildOdds(): Frame
+local function buildOdds(parent: Instance): Frame
 	local row = make("Frame", {
 		Name = "Odds",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -6),
-		Size = UDim2.new(0, 540, 0, 18),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, BUTTON_HEIGHT + 8),
+		Size = UDim2.new(0, 560, 0, 18),
+		Parent = parent,
 	}, {
 		make("UIListLayout", {
 			FillDirection = Enum.FillDirection.Horizontal,
@@ -960,24 +2183,93 @@ local function buildOdds(): Frame
 			then `{rarity.Name} {string.format("%.0f", percent)}%`
 			else `{rarity.Name} {string.format("%.2f", percent)}%`
 
-		make("TextLabel", {
+		Theme.label({
 			Name = rarity.Id,
 			LayoutOrder = index,
-			BackgroundTransparency = 1,
 			AutomaticSize = Enum.AutomaticSize.X,
 			Size = UDim2.new(0, 0, 1, 0),
-			Font = Enum.Font.GothamMedium,
+			TextScaled = false,
+			TextSize = 13,
 			Text = text,
-			TextSize = 12,
 			TextColor3 = rarity.TextColor,
-			TextTransparency = 0.25,
 			Parent = row,
-		}, {
-			make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.55 }),
-		})
+		}, 2)
 	end
 
 	return row
+end
+
+-- The square icon tile on the left edge, like the reference side menu.
+local function buildSideButton(parent: Instance): TextButton
+	local size = L.SideButton
+
+	local button = make("TextButton", {
+		Name = "InventoryButton",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.42, 0),
+		Size = UDim2.fromOffset(size, size + 16),
+		BackgroundTransparency = 1,
+		AutoButtonColor = false,
+		Text = "",
+		Parent = parent,
+	}) :: TextButton
+
+	local tile = Theme.slotFrame({
+		Name = "Tile",
+		Size = UDim2.fromOffset(size, size),
+	}, Color3.fromRGB(120, 90, 255)) :: Frame
+	tile.Parent = button
+
+	-- A small bag drawn from two rounded frames.
+	make("Frame", {
+		Name = "BagBody",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.82),
+		Size = UDim2.fromScale(0.6, 0.44),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Parent = tile,
+	}, {
+		Theme.corner(6),
+		Theme.stroke(Theme.Colors.Outline, 2),
+	})
+
+	make("Frame", {
+		Name = "BagHandle",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 0.44),
+		Size = UDim2.fromScale(0.32, 0.3),
+		BackgroundTransparency = 1,
+		Parent = tile,
+	}, {
+		Theme.corner(999),
+		Theme.stroke(Color3.new(1, 1, 1), 4),
+	})
+
+	Theme.label({
+		Name = "Caption",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, 0),
+		Size = UDim2.fromOffset(size + 20, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = "Items",
+		Parent = button,
+	}, 2.5)
+
+	-- The keybind hint above the tile.
+	Theme.label({
+		Name = "Key",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, 2, 0, 2),
+		Size = UDim2.fromOffset(16, 16),
+		TextScaled = false,
+		TextSize = 14,
+		Text = Config.Keys.Inventory.Name,
+		Parent = button,
+	}, 2)
+
+	return button
 end
 
 function RollUI.new(): RollUI
@@ -991,121 +2283,127 @@ function RollUI.new(): RollUI
 		DisplayOrder = 10,
 	}) :: ScreenGui
 
+	local scaleHost = make("Frame", {
+		Name = "ScaleHost",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = gui,
+	})
+
+	local scale = make("UIScale", { Scale = 1, Parent = scaleHost }) :: UIScale
+
+	-- Roll button sits above the hotbar, not on the bottom edge.
 	local dock = make("Frame", {
 		Name = "Dock",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.new(0, 560, 0, 132),
-		Parent = gui,
+		Position = UDim2.new(0.5, 0, 1, -L.RollBottom),
+		Size = UDim2.fromOffset(600, BUTTON_HEIGHT + 52),
+		Parent = scaleHost,
 	})
 
-	local status = make("TextLabel", {
+	local status = Theme.label({
 		Name = "Status",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		Size = UDim2.new(1, 0, 0, 20),
-		Font = Enum.Font.GothamMedium,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -4),
+		Size = UDim2.fromOffset(560, 20),
+		TextScaled = false,
+		TextSize = 16,
 		Text = "",
-		TextSize = 15,
-		TextColor3 = Color3.fromRGB(226, 230, 240),
 		Parent = dock,
-	}, {
-		make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.4 }),
-	}) :: TextLabel
+	}, 2.5)
 
-	local buttonLabel = make("TextLabel", {
+	local buttonLabel = Theme.label({
 		Name = "Label",
-		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Font = Enum.Font.GothamBold,
+		TextScaled = false,
+		TextSize = 28,
 		Text = "ROLL",
-		TextSize = 26,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-	}) :: TextLabel
+	}, 3.5)
 
-	local stroke = make("UIStroke", {
-		Color = Color3.fromRGB(150, 180, 255),
-		Thickness = 2,
-		Transparency = 0.2,
-	}) :: UIStroke
+	local stroke = Theme.stroke(Theme.Colors.Outline, 3)
 
 	local button = make("TextButton", {
 		Name = "RollButton",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 28),
-		Size = UDim2.new(0, BUTTON_WIDTH, 0, BUTTON_HEIGHT),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.fromOffset(BUTTON_WIDTH, BUTTON_HEIGHT),
 		BackgroundColor3 = IDLE_COLOR,
 		AutoButtonColor = false,
 		Text = "",
 		Parent = dock,
 	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 14) }),
-		make("UIGradient", {
-			Rotation = 90,
-			Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 195, 215)),
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.7),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-		}),
+		Theme.corner(14),
+		Theme.gradient(Color3.new(1, 1, 1), Color3.fromRGB(178, 184, 206)),
 		stroke,
 		buttonLabel,
 	}) :: TextButton
 
-	buildOdds().Parent = dock
+	buildOdds(dock)
+	local sideButton = buildSideButton(scaleHost)
 
-	local bannerLabel = make("TextLabel", {
+	local bannerLabel = Theme.label({
 		Name = "Label",
-		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
-		Font = Enum.Font.GothamBold,
+		TextScaled = false,
+		TextSize = 22,
 		Text = "",
-		TextSize = 20,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-	}, {
-		make("UIStroke", { Color = Color3.fromRGB(0, 0, 0), Thickness = 2, Transparency = 0.4 }),
-	}) :: TextLabel
+	}, 3)
 
-	local banner = make("Frame", {
+	local banner = Theme.panel({
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 74),
-		Size = UDim2.new(0, 380, 0, 52),
-		BackgroundColor3 = Color3.fromRGB(14, 15, 20),
-		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(400, 54),
 		Visible = false,
-		Parent = gui,
-	}, {
-		make("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		make("UIStroke", { Name = "Edge", Color = Color3.fromRGB(255, 255, 255), Thickness = 2, Transparency = 1 }),
-		bannerLabel,
-	}) :: Frame
+		Parent = scaleHost,
+	}, Color3.new(1, 1, 1), { bannerLabel })
+
+	local notice = Theme.label({
+		Name = "Notice",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 140),
+		Size = UDim2.fromOffset(520, 24),
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Visible = false,
+		Parent = scaleHost,
+	}, 3)
 
 	gui.Parent = playerGui
 
 	local self = setmetatable({
 		Gui = gui,
+		Scale = scale,
 		Button = button,
 		ButtonLabel = buttonLabel,
 		Status = status,
+		InventoryButton = sideButton,
 		Banner = banner,
 		BannerLabel = bannerLabel,
+		Notice = notice,
 		Stroke = stroke,
 		Enabled = true,
 		OnRoll = nil,
+		OnInventory = nil,
 	}, RollUI)
 
 	button.MouseButton1Click:Connect(function()
 		if self.Enabled and self.OnRoll then
-			self.OnRoll()
+			(self.OnRoll :: any)()
 		end
 	end)
 
-	local function scaleTo(scale: number)
+	sideButton.MouseButton1Click:Connect(function()
+		if self.OnInventory then
+			(self.OnInventory :: any)()
+		end
+	end)
+
+	local function scaleTo(factor: number)
 		TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad), {
-			Size = UDim2.new(0, math.floor(BUTTON_WIDTH * scale), 0, math.floor(BUTTON_HEIGHT * scale)),
+			Size = UDim2.fromOffset(math.floor(BUTTON_WIDTH * factor), math.floor(BUTTON_HEIGHT * factor)),
 		}):Play()
 	end
 
@@ -1131,6 +2429,10 @@ function RollUI.new(): RollUI
 	return (self :: any) :: RollUI
 end
 
+function RollUI.setScale(self: RollUI, factor: number)
+	self.Scale.Scale = factor
+end
+
 function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
 	local changed = self.Enabled ~= enabled
 	self.Enabled = enabled
@@ -1143,7 +2445,7 @@ function RollUI.setEnabled(self: RollUI, enabled: boolean, label: string?)
 		TweenService:Create(self.Button, TweenInfo.new(0.18), {
 			BackgroundColor3 = if enabled then IDLE_COLOR else BUSY_COLOR,
 		}):Play()
-		self.Stroke.Transparency = if enabled then 0.2 else 0.75
+		self.Stroke.Transparency = if enabled then 0 else 0.45
 	end
 end
 
@@ -1172,27 +2474,27 @@ function RollUI.runCooldown(self: RollUI, seconds: number, isCurrent: () -> bool
 	end)
 end
 
-function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity)
+function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rarity, xp: number)
 	local banner = self.Banner
-	local edge = banner:FindFirstChild("Edge") :: UIStroke
-	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}`
+	local edge = banner:FindFirstChildOfClass("UIStroke")
+	self.BannerLabel.Text = `{cardName}  -  {rarity.Name}  +{xp} XP`
 	self.BannerLabel.TextColor3 = rarity.TextColor
-	edge.Color = rarity.Color
+	if edge then
+		edge.Color = rarity.Color
+	end
+
 	banner.Visible = true
 	banner.BackgroundTransparency = 1
 	self.BannerLabel.TextTransparency = 1
-	edge.Transparency = 1
 
 	local inInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(banner, inInfo, { BackgroundTransparency = 0.15 }):Play()
+	TweenService:Create(banner, inInfo, { BackgroundTransparency = 0.05 }):Play()
 	TweenService:Create(self.BannerLabel, inInfo, { TextTransparency = 0 }):Play()
-	TweenService:Create(edge, inInfo, { Transparency = 0.1 }):Play()
 
 	task.delay(2.4, function()
 		local outInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-		TweenService:Create(banner, outInfo, { BackgroundTransparency = 1 }):Play()
 		TweenService:Create(self.BannerLabel, outInfo, { TextTransparency = 1 }):Play()
-		local fade = TweenService:Create(edge, outInfo, { Transparency = 1 })
+		local fade = TweenService:Create(banner, outInfo, { BackgroundTransparency = 1 })
 		fade.Completed:Connect(function()
 			banner.Visible = false
 		end)
@@ -1200,7 +2502,332 @@ function RollUI.showBanner(self: RollUI, cardName: string, rarity: Rarities.Rari
 	end)
 end
 
+-- One-line toast for server messages like a locked hotbar slot.
+function RollUI.showNotice(self: RollUI, text: string, isError: boolean?)
+	self.Notice.Text = text
+	self.Notice.TextColor3 = if isError then Theme.Colors.Danger else Theme.Colors.Text
+	self.Notice.Visible = true
+	self.Notice.TextTransparency = 0
+
+	task.delay(2.2, function()
+		if self.Notice.Text ~= text then
+			return -- a newer notice took over
+		end
+		local fade = TweenService:Create(self.Notice, TweenInfo.new(0.3), { TextTransparency = 1 })
+		fade.Completed:Connect(function()
+			if self.Notice.Text == text then
+				self.Notice.Visible = false
+			end
+		end)
+		fade:Play()
+	end)
+end
+
 return RollUI
+]]></ProtectedString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX7">
+			<Properties>
+				<string name="Name">Showcase</string>
+				<ProtectedString name="Source"><![CDATA[--!strict
+--[[
+	Showcase
+	The full-screen "here is the item" moment from the reference clip: the item
+	floats in front of the camera on a lit panel, gold sparks burst out of it,
+	and the name, rarity and owned count sit to the right. A click anywhere
+	closes it.
+
+	It is a real world part rather than a flat image so the sparks and the
+	lighting read the same way they do in the clip.
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local CardSystem = ReplicatedStorage:WaitForChild("CardSystem")
+local Cards = require(CardSystem:WaitForChild("Cards"))
+local Config = require(CardSystem:WaitForChild("Config"))
+local Rarities = require(CardSystem:WaitForChild("Rarities"))
+local Theme = require(CardSystem:WaitForChild("Theme"))
+
+local Profile = require(script.Parent:WaitForChild("Profile"))
+
+local make = Theme.make
+local SHOW = Config.Showcase
+
+local Showcase = {}
+Showcase.__index = Showcase
+
+export type Showcase = typeof(setmetatable(
+	{} :: {
+		Gui: ScreenGui,
+		NameLabel: TextLabel,
+		RarityLabel: TextLabel,
+		OwnedLabel: TextLabel,
+		TagLabel: TextLabel,
+		Hint: TextLabel,
+		Part: BasePart?,
+		Sparks: ParticleEmitter?,
+		Base: CFrame,
+		StartTime: number,
+		Open: boolean,
+		Connection: RBXScriptConnection?,
+		OnClosed: (() -> ())?,
+	},
+	Showcase
+))
+
+function Showcase.new(): Showcase
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local gui = make("ScreenGui", {
+		Name = "CardShowcase",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 20,
+		Enabled = false,
+	}) :: ScreenGui
+
+	-- Text column, right of centre, matching the reference layout.
+	local column = make("Frame", {
+		Name = "Details",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0.58, 0.46),
+		Size = UDim2.fromOffset(420, 160),
+		Parent = gui,
+	})
+
+	local nameLabel = Theme.label({
+		Name = "ItemName",
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0, 34),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 30,
+		Text = "",
+		Parent = column,
+	}, 3)
+
+	local rarityLabel = Theme.label({
+		Name = "Rarity",
+		Position = UDim2.fromOffset(0, 34),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Parent = column,
+	}, 2.5)
+
+	local ownedLabel = Theme.label({
+		Name = "Owned",
+		Position = UDim2.fromOffset(0, 58),
+		Size = UDim2.new(1, 0, 0, 22),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 18,
+		Text = "",
+		Parent = column,
+	}, 2.5)
+
+	local tagLabel = Theme.label({
+		Name = "Tagline",
+		Position = UDim2.fromOffset(0, 92),
+		Size = UDim2.new(1, 0, 0, 32),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false,
+		TextSize = 24,
+		TextWrapped = true,
+		Text = "",
+		Parent = column,
+	}, 3)
+
+	local hint = Theme.label({
+		Name = "Hint",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -70),
+		Size = UDim2.fromOffset(400, 24),
+		TextScaled = false,
+		TextSize = 18,
+		Text = "(Click anywhere to continue)",
+		Parent = gui,
+	}, 2.5)
+
+	gui.Parent = playerGui
+
+	local self = setmetatable({
+		Gui = gui,
+		NameLabel = nameLabel,
+		RarityLabel = rarityLabel,
+		OwnedLabel = ownedLabel,
+		TagLabel = tagLabel,
+		Hint = hint,
+		Part = nil,
+		Sparks = nil,
+		Base = CFrame.new(),
+		StartTime = 0,
+		Open = false,
+		Connection = nil,
+		OnClosed = nil,
+	}, Showcase)
+
+	return (self :: any) :: Showcase
+end
+
+local function buildFace(card: Cards.Card, rarity: Rarities.Rarity): CanvasGroup
+	local top, bottom = Theme.rarityBackdrop(rarity.Color)
+	return make("CanvasGroup", {
+		Name = "Face",
+		BackgroundColor3 = top,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		ClipsDescendants = true,
+	}, {
+		Theme.corner(10),
+		Theme.gradient(top, bottom, 135),
+		Theme.stroke(rarity.Color, 6),
+		Theme.iconFor(card.Name, card.Icon, rarity.Color, {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.5, 0.66),
+		}),
+	})
+end
+
+function Showcase.show(self: Showcase, cardId: string)
+	local card = Cards.get(cardId)
+	if not card then
+		return
+	end
+	local rarity = Rarities.get(card.Rarity)
+
+	self:hide(true)
+
+	local camera = workspace.CurrentCamera
+	local base = camera.CFrame * CFrame.new(0, 0.2, -SHOW.Distance)
+	self.Base = CFrame.lookAt(base.Position, camera.CFrame.Position)
+
+	local part = make("Part", {
+		Name = "ShowcaseItem",
+		Anchored = true,
+		CanCollide = false,
+		CanTouch = false,
+		CanQuery = false,
+		CastShadow = false,
+		Material = Enum.Material.SmoothPlastic,
+		Color = Color3.fromRGB(14, 15, 20),
+		Size = SHOW.Size,
+		CFrame = self.Base,
+		Parent = workspace,
+	}) :: BasePart
+
+	make("SurfaceGui", {
+		Name = "FaceGui",
+		Face = Enum.NormalId.Front,
+		SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud,
+		PixelsPerStud = Config.PixelsPerStud,
+		LightInfluence = 0,
+		Brightness = 1.6,
+		MaxDistance = 250,
+		Parent = part,
+	}, { buildFace(card, rarity) })
+
+	make("PointLight", {
+		Color = rarity.GlowColor,
+		Brightness = 3,
+		Range = 16,
+		Shadows = false,
+		Parent = part,
+	})
+
+	local attachment = make("Attachment", { Name = "SparkPoint", Parent = part }) :: Attachment
+	local sparks = make("ParticleEmitter", {
+		Name = "Sparks",
+		Color = ColorSequence.new(rarity.GlowColor),
+		LightEmission = 1,
+		Lifetime = NumberRange.new(0.6, 1.4),
+		Speed = NumberRange.new(9, 20),
+		SpreadAngle = Vector2.new(180, 180),
+		Rate = 26,
+		Rotation = NumberRange.new(0, 360),
+		Size = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.7),
+			NumberSequenceKeypoint.new(1, 0),
+		}),
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(1, 1),
+		}),
+		Parent = attachment,
+	}) :: ParticleEmitter
+	sparks:Emit(60)
+
+	self.Part = part
+	self.Sparks = sparks
+	self.StartTime = os.clock()
+
+	self.NameLabel.Text = card.Name
+	self.RarityLabel.Text = rarity.Name
+	self.RarityLabel.TextColor3 = rarity.TextColor
+	self.OwnedLabel.Text = `Owned: {Profile.count(cardId)}x`
+	self.TagLabel.Text = card.Description
+
+	self.Gui.Enabled = true
+	self.Open = true
+
+	-- Fade the text in rather than popping it.
+	for _, label in { self.NameLabel, self.RarityLabel, self.OwnedLabel, self.TagLabel } do
+		label.TextTransparency = 1
+		TweenService:Create(label, TweenInfo.new(0.25), { TextTransparency = 0 }):Play()
+	end
+
+	self.Connection = RunService.RenderStepped:Connect(function()
+		self:step()
+	end)
+end
+
+function Showcase.step(self: Showcase)
+	local part = self.Part
+	if not part then
+		return
+	end
+	local elapsed = os.clock() - self.StartTime
+	local bob = math.sin(elapsed * SHOW.BobSpeed) * SHOW.BobHeight
+	local spin = math.sin(elapsed * SHOW.SpinSpeed) * 0.25
+
+	part.CFrame = CFrame.new(0, bob, 0) * self.Base * CFrame.Angles(0, spin, 0)
+end
+
+--[[
+	Tears the showcase down. `silent` skips the closed callback, which the
+	show path uses when it replaces an already open showcase.
+]]
+function Showcase.hide(self: Showcase, silent: boolean?)
+	if self.Connection then
+		self.Connection:Disconnect()
+		self.Connection = nil
+	end
+	if self.Part then
+		self.Part:Destroy()
+		self.Part = nil
+	end
+	self.Sparks = nil
+
+	local wasOpen = self.Open
+	self.Open = false
+	self.Gui.Enabled = false
+
+	if wasOpen and not silent and self.OnClosed then
+		(self.OnClosed :: any)()
+	end
+end
+
+return Showcase
 ]]></ProtectedString>
 			</Properties>
 		</Item>
