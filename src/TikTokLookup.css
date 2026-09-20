@@ -1,58 +1,69 @@
 .tt-page {
-  --tt-bg: #0f0f12;
-  --tt-surface: #1b1b21;
-  --tt-border: #2e2e37;
-  --tt-text: #f4f4f6;
-  --tt-muted: #a1a1ad;
-  --tt-gold: #f0c04a;
-  --tt-pink: #ff3b5c;
+  --tt-bg: #ffffff;
+  --tt-surface: #ffffff;
+  --tt-tile: #e4e4e7;
+  --tt-tile-hover: #dadadd;
+  --tt-border: #ebebed;
+  --tt-field: #f5f5f6;
+  --tt-text: #161823;
+  --tt-muted: #8a8b91;
+  --tt-gold: #e8a825;
+  --tt-pink: #fe2c55;
 
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 40px 16px 64px;
-  margin: 0 auto;
-  max-width: 560px;
+  padding: 36px 16px 56px;
   background: var(--tt-bg);
   color: var(--tt-text);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+/* The page paints the whole viewport white; the content column stays narrow. */
+.tt-page > * {
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .tt-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .tt-header h1 {
-  margin: 12px 0 6px;
-  font-size: 26px;
+  margin: 10px 0 6px;
+  font-size: 23px;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 .tt-header p {
   margin: 0;
   color: var(--tt-muted);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.5;
 }
+
+/* ---------- search panel ---------- */
 
 .tt-panel {
   background: var(--tt-surface);
   border: 1px solid var(--tt-border);
-  border-radius: 16px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 18px;
 }
 
 .tt-label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--tt-muted);
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 
 .tt-label + .tt-row,
 .tt-label + .tt-field {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .tt-panel > :last-child {
@@ -67,7 +78,7 @@
 }
 
 .tt-row .tt-field {
-  flex: 1 1 200px;
+  flex: 1 1 180px;
   margin-bottom: 0;
 }
 
@@ -75,22 +86,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #101015;
-  border: 1px solid var(--tt-border);
-  border-radius: 12px;
+  background: var(--tt-field);
+  border: 1px solid transparent;
+  border-radius: 10px;
   padding: 0 12px;
 }
 
 .tt-field:focus-within {
-  border-color: var(--tt-gold);
+  border-color: var(--tt-text);
+  background: #fff;
 }
 
 .tt-adornment {
   display: flex;
   align-items: center;
   color: var(--tt-muted);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .tt-input {
@@ -101,20 +113,20 @@
   outline: none;
   color: var(--tt-text);
   font-size: 16px;
-  padding: 13px 0;
+  padding: 12px 0;
   font-family: inherit;
 }
 
 .tt-input::placeholder {
-  color: #6b6b78;
+  color: #b5b5ba;
 }
 
 .tt-button {
   background: var(--tt-pink);
   color: #fff;
   border: none;
-  border-radius: 12px;
-  padding: 13px 22px;
+  border-radius: 10px;
+  padding: 12px 22px;
   font-size: 15px;
   font-weight: 700;
   font-family: inherit;
@@ -122,33 +134,35 @@
 }
 
 .tt-button:hover:not(:disabled) {
-  background: #e62f4f;
+  background: #e51f47;
 }
 
 .tt-button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: default;
 }
 
+/* ---------- error ---------- */
+
 .tt-error {
-  margin-top: 18px;
-  background: #2a1a1d;
-  border: 1px solid #5a2b34;
-  border-radius: 14px;
-  padding: 16px 18px;
-  font-size: 14px;
+  margin-top: 16px;
+  background: #fff3f5;
+  border: 1px solid #ffd2da;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
   line-height: 1.55;
 }
 
 .tt-error p {
-  margin: 10px 0 6px;
-  color: var(--tt-muted);
+  margin: 9px 0 5px;
+  color: #7a6a6d;
 }
 
 .tt-error ul {
   margin: 0;
   padding-left: 20px;
-  color: var(--tt-muted);
+  color: #7a6a6d;
   word-break: break-word;
 }
 
@@ -156,49 +170,52 @@
   margin-bottom: 0 !important;
 }
 
+/* ---------- profile card ---------- */
+
 .tt-card {
-  margin-top: 22px;
+  margin-top: 20px;
   background: var(--tt-surface);
   border: 1px solid var(--tt-border);
-  border-radius: 16px;
-  padding: 28px 20px 22px;
+  border-radius: 14px;
+  padding: 30px 20px 22px;
   text-align: center;
 }
 
 .tt-avatar-wrap {
   display: flex;
   justify-content: center;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .tt-avatar {
-  width: 128px;
-  height: 128px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
   object-fit: cover;
-  background: #101015;
-  border: 3px solid var(--tt-gold);
+  background: var(--tt-field);
+  border: 1px solid var(--tt-border);
 }
 
 .tt-avatar-fallback {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 46px;
+  font-size: 42px;
   font-weight: 700;
-  color: var(--tt-gold);
-  border-style: dashed;
+  color: var(--tt-muted);
+  border: 1px dashed #cfcfd4;
 }
 
 .tt-nickname {
-  margin: 0 0 4px;
-  font-size: 20px;
+  margin: 0 0 3px;
+  font-size: 17px;
+  font-weight: 700;
 }
 
 .tt-handle {
   color: var(--tt-muted);
   text-decoration: none;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .tt-handle:hover {
@@ -207,39 +224,69 @@
 }
 
 .tt-followers {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--tt-muted);
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.tt-coins-row {
+/* the big number, like the balance on TikTok's coin screen */
+.tt-balance {
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin-top: 18px;
+  gap: 10px;
+  margin: 22px 0 20px;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
-.tt-coins {
-  display: inline-flex;
-  align-items: center;
+/* ---------- amount grid ---------- */
+
+.tt-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 0;
-  padding: 10px 18px;
-  background: #101015;
-  border: 1px solid #3d3423;
-  border-radius: 999px;
-  font-size: 22px;
+}
+
+.tt-amount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 58px;
+  padding: 8px 4px;
+  background: var(--tt-tile);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  color: var(--tt-text);
+  font-family: inherit;
+  font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--tt-gold);
+  cursor: pointer;
 }
 
+.tt-amount:hover {
+  background: var(--tt-tile-hover);
+}
+
+.tt-amount.is-selected {
+  background: #fdf3dd;
+  border-color: var(--tt-gold);
+}
+
+/* ---------- manual picture fallback ---------- */
+
 .tt-manual {
-  margin-top: 22px;
-  padding-top: 18px;
+  margin-top: 20px;
+  padding-top: 16px;
   border-top: 1px solid var(--tt-border);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   align-items: stretch;
 }
 
@@ -247,7 +294,7 @@
   background: none;
   border: none;
   color: var(--tt-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
   text-decoration: underline;
   cursor: pointer;
@@ -260,23 +307,30 @@
 
 .tt-input-plain {
   border: 1px solid var(--tt-border);
-  border-radius: 10px;
-  padding: 11px 12px;
-  font-size: 14px;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13px;
   text-align: center;
-  background: #101015;
+  background: var(--tt-field);
 }
 
 .tt-source {
-  margin: 16px 0 0;
+  margin: 14px 0 0;
   font-size: 12px;
-  color: #6b6b78;
+  color: #b5b5ba;
 }
 
 .tt-footer {
-  margin-top: 26px;
+  margin-top: 22px;
   font-size: 12px;
   line-height: 1.6;
-  color: #6b6b78;
+  color: #a8a8ae;
   text-align: center;
+}
+
+@media (max-width: 420px) {
+  /* the button wraps onto its own line here, so let it fill it */
+  .tt-row .tt-button {
+    flex: 1 1 100%;
+  }
 }

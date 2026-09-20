@@ -11,6 +11,9 @@ import {
 
 const numberFormat = new Intl.NumberFormat();
 
+/** The amounts shown in the grid, following TikTok's own coin bundles. */
+const COIN_AMOUNTS = [70, 350, 700, 1400, 3500, 7000, 17500, 35000, 70000];
+
 function initialOf(username: string): string {
   const letter = username.replace(/[^A-Za-z0-9]/g, '')[0];
   return letter ? letter.toUpperCase() : '?';
@@ -174,14 +177,25 @@ function TikTokLookup() {
             <p className="tt-followers">{numberFormat.format(profile.followerCount)} followers</p>
           )}
 
-          {formattedCoins !== null && (
-            <div className="tt-coins-row">
-              <p className="tt-coins">
-                <CoinIcon size={28} />
-                <span>{formattedCoins}</span>
-              </p>
-            </div>
-          )}
+          <p className="tt-balance">
+            <CoinIcon size={30} />
+            <span>{formattedCoins ?? '0'}</span>
+          </p>
+
+          <div className="tt-amounts">
+            {COIN_AMOUNTS.map(amount => (
+              <button
+                type="button"
+                key={amount}
+                className={`tt-amount ${coinValue === amount ? 'is-selected' : ''}`}
+                aria-pressed={coinValue === amount}
+                onClick={() => setCoins(String(amount))}
+              >
+                <CoinIcon size={15} />
+                <span>{numberFormat.format(amount)}</span>
+              </button>
+            ))}
+          </div>
 
           <div className="tt-manual">
             <button type="button" className="tt-link-button" onClick={() => fileInput.current?.click()}>
