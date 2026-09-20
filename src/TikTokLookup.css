@@ -278,6 +278,69 @@
   border-color: var(--tt-gold);
 }
 
+.tt-send {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px 20px;
+  background: var(--tt-pink);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tt-send:hover {
+  background: #e51f47;
+}
+
+.tt-send:active {
+  transform: translateY(1px);
+}
+
+/* ---------- "sent" confirmation ---------- */
+
+.tt-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 13px 20px;
+  background: rgba(22, 24, 35, 0.94);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.22);
+  animation: tt-toast-in 180ms ease-out;
+  z-index: 10;
+}
+
+.tt-toast small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.65;
+}
+
+@keyframes tt-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 /* ---------- manual picture fallback ---------- */
 
 .tt-manual {

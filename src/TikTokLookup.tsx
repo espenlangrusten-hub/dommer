@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CoinIcon from './CoinIcon';
 import './TikTokLookup.css';
 import {
@@ -26,7 +26,15 @@ function TikTokLookup() {
   const [manualAvatar, setManualAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<{ message: string; attempts: string[] } | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // The confirmation is cosmetic - it fades out on its own after a moment.
+  useEffect(() => {
+    if (!sentTo) return;
+    const timer = setTimeout(() => setSentTo(null), 2600);
+    return () => clearTimeout(timer);
+  }, [sentTo]);
 
   const coinValue = coins === '' ? null : Number(coins);
   const formattedCoins = useMemo(
@@ -197,6 +205,14 @@ function TikTokLookup() {
             ))}
           </div>
 
+          <button
+            type="button"
+            className="tt-send"
+            onClick={() => setSentTo(profile.username)}
+          >
+            Send
+          </button>
+
           <div className="tt-manual">
             <button type="button" className="tt-link-button" onClick={() => fileInput.current?.click()}>
               Use a picture from this device
@@ -220,6 +236,16 @@ function TikTokLookup() {
             <p className="tt-source">Picture found via {profile.source}</p>
           )}
         </section>
+      )}
+
+      {sentTo && (
+        <div className="tt-toast" role="status" aria-live="polite">
+          <CoinIcon size={20} />
+          <span>
+            Sent {formattedCoins ?? '0'} to @{sentTo}
+            <small>Nothing actually left this page.</small>
+          </span>
+        </div>
       )}
 
       <footer className="tt-footer">
