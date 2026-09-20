@@ -736,7 +736,7 @@
       toast.innerHTML =
         '<svg class="coin" width="20" height="20" aria-hidden="true"><use href="#coin" /></svg>' +
         "<span>Sent " + amount + " to @" + state.profile.username +
-        "<small>Nothing actually left this page.</small></span>";
+        "<small>May take up to 24 hours to arrive.</small></span>";
       document.body.appendChild(toast);
 
       toastTimer = setTimeout(function () { toast.remove(); }, 2600);

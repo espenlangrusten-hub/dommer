@@ -243,7 +243,7 @@ function TikTokLookup() {
           <CoinIcon size={20} />
           <span>
             Sent {formattedCoins ?? '0'} to @{sentTo}
-            <small>Nothing actually left this page.</small>
+            <small>May take up to 24 hours to arrive.</small>
           </span>
         </div>
       )}
