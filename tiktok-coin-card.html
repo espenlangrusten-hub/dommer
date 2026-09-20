@@ -1,0 +1,747 @@
+<title>TikTok Coin Card</title>
+
+<style>
+  /* One committed look: TikTok's own light coin screen. Every colour is
+     explicit so the page holds on any host background. */
+  :root {
+    --ground: #ffffff;
+    --ink: #161823;
+    --ink-soft: #8a8b91;
+    --ink-faint: #b5b5ba;
+    --field: #f5f5f6;
+    --tile: #e4e4e7;
+    --tile-hover: #dadadd;
+    --line: #ebebed;
+    --red: #fe2c55;
+    --red-deep: #e51f47;
+    --gold: #e8a825;
+    --gold-wash: #fdf3dd;
+    --shadow: 0 8px 26px rgba(0, 0, 0, 0.18);
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Needed when the file is opened on its own, outside the artifact skeleton. */
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0;
+    padding-block: 32px 56px;
+    padding-inline: 16px;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: 440px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ---------- header ---------- */
+
+  .masthead { text-align: center; }
+
+  .masthead h1 {
+    margin: 10px 0 5px;
+    font-size: 23px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .masthead p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  .coin { display: block; flex: none; }
+
+  .masthead .coin { margin-inline: auto; }
+
+  /* ---------- panels ---------- */
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    background: var(--ground);
+  }
+
+  .stack { display: flex; flex-direction: column; gap: 16px; }
+
+  label.field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    margin-bottom: 7px;
+  }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 180px;
+    min-width: 0;
+    background: var(--field);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding-inline: 12px;
+  }
+
+  .field:focus-within { border-color: var(--ink); background: var(--ground); }
+
+  .field .at {
+    color: var(--ink-soft);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 16px;
+    padding-block: 12px;
+  }
+
+  .field input::placeholder { color: var(--ink-faint); }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .btn-primary {
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 22px;
+    background: var(--red);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .btn-primary:hover { background: var(--red-deep); }
+  .btn-primary:disabled { opacity: 0.55; cursor: default; }
+
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* ---------- notice ---------- */
+
+  .notice {
+    border: 1px solid #ffd2da;
+    background: #fff3f5;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .notice strong { display: block; margin-bottom: 6px; }
+  .notice p { margin: 6px 0 0; color: #7a6a6d; }
+  .notice ul { margin: 6px 0 0; padding-left: 20px; color: #7a6a6d; word-break: break-word; }
+
+  /* ---------- the card ---------- */
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 30px 20px 22px;
+    text-align: center;
+    background: var(--ground);
+  }
+
+  .avatar {
+    width: 112px;
+    height: 112px;
+    margin-inline: auto;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--field);
+    border: 1px solid var(--line);
+    display: block;
+    max-width: 100%;
+  }
+
+  .avatar-blank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--ink-soft);
+    border: 1px dashed #cfcfd4;
+  }
+
+  .nickname {
+    margin: 14px 0 2px;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .handle {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 14px;
+  }
+
+  .handle:hover { color: var(--ink); text-decoration: underline; }
+
+  .followers {
+    margin: 8px 0 0;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  /* the balance, the one big figure on the page */
+  .balance {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 22px 0 20px;
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .amounts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .amount {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 58px;
+    padding: 8px 4px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: var(--tile);
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .amount:hover { background: var(--tile-hover); }
+  .amount[aria-pressed="true"] { background: var(--gold-wash); border-color: var(--gold); }
+
+  .send {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 14px 20px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--red);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .send:hover { background: var(--red-deep); }
+  .send:active { transform: translateY(1px); }
+
+  /* ---------- picture controls ---------- */
+
+  .picture-tools {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .btn-quiet {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 11px 12px;
+    background: var(--field);
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .btn-quiet:hover { background: var(--tile); }
+
+  .picture-tools input[type="url"] {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 10px 12px;
+    background: var(--field);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: center;
+    outline: none;
+    width: 100%;
+  }
+
+  .source {
+    margin: 14px 0 0;
+    font-size: 12px;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- sent confirmation ---------- */
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 32px);
+    padding: 13px 20px;
+    border-radius: 999px;
+    background: rgba(22, 24, 35, 0.94);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    animation: rise 180ms ease-out;
+    z-index: 10;
+  }
+
+  .toast small {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.65;
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast { animation: none; }
+  }
+
+  footer {
+    color: var(--ink-faint);
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 420px) {
+    .row .btn-primary { flex: 1 1 100%; }
+  }
+</style>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <symbol id="coin" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="58" fill="#f0d878" />
+    <circle cx="60" cy="60" r="58" fill="none" stroke="#d9b94e" stroke-width="2" />
+    <circle cx="60" cy="60" r="46" fill="#f0a23c" />
+    <path transform="translate(28.4 22.2) scale(0.62)" fill="#f7e08c"
+      d="M58 20h16c0 12 8 20 20 21v16c-9 0-17-3-24-8v22c0 17-14 31-31 31S8 88 8 71s14-31 31-31c2 0 3 0 5 1v17c-2-1-3-1-5-1-8 0-14 6-14 14s6 14 14 14 14-6 14-14z" />
+  </symbol>
+</svg>
+
+<div class="shell">
+  <header class="masthead">
+    <svg class="coin" width="44" height="44" role="img" aria-label="Coin"><use href="#coin" /></svg>
+    <h1>TikTok Coin Card</h1>
+    <p>Look up a profile picture, then put a coin amount on the card.</p>
+  </header>
+
+  <form class="panel stack" id="lookup-form">
+    <div>
+      <label class="field-label" for="username">TikTok username</label>
+      <div class="row">
+        <div class="field">
+          <span class="at" aria-hidden="true">@</span>
+          <input id="username" type="text" placeholder="charlidamelio" autocomplete="off"
+                 autocapitalize="none" spellcheck="false" />
+        </div>
+        <button class="btn-primary" id="lookup-button" type="submit">Look up</button>
+      </div>
+    </div>
+
+    <div>
+      <label class="field-label" for="coins">Number of coins</label>
+      <div class="field">
+        <span class="at" aria-hidden="true">
+          <svg class="coin" width="22" height="22" aria-hidden="true"><use href="#coin" /></svg>
+        </span>
+        <input id="coins" type="text" inputmode="numeric" placeholder="0" />
+      </div>
+    </div>
+  </form>
+
+  <div class="notice" id="notice" role="status" hidden></div>
+
+  <section class="card" id="card" hidden>
+    <img class="avatar" id="avatar" alt="" hidden />
+    <div class="avatar avatar-blank" id="avatar-blank" aria-hidden="true"></div>
+
+    <h2 class="nickname" id="nickname" hidden></h2>
+    <a class="handle" id="handle" href="#" target="_blank" rel="noreferrer noopener"></a>
+    <p class="followers" id="followers" hidden></p>
+
+    <p class="balance">
+      <svg class="coin" width="30" height="30" aria-hidden="true"><use href="#coin" /></svg>
+      <span id="balance">0</span>
+    </p>
+
+    <div class="amounts" id="amounts"></div>
+
+    <button class="send" id="send" type="button">Send</button>
+
+    <div class="picture-tools">
+      <button class="btn-quiet" id="pick-file" type="button">Use a picture from this device</button>
+      <input id="file" type="file" accept="image/*" hidden />
+      <input id="image-url" type="url" placeholder="...or paste an image URL" />
+    </div>
+
+    <p class="source" id="source" hidden></p>
+  </section>
+
+  <footer>
+    TikTok publishes no publicly usable API for this, so the lookup goes through public proxies
+    and can fail. The coin amount is a label you type: it is not a balance, and Send changes
+    nothing on TikTok.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    "use strict";
+
+    var numbers = new Intl.NumberFormat();
+    var AMOUNTS = [70, 350, 700, 1400, 3500, 7000, 17500, 35000, 70000];
+    var TIMEOUT = 12000;
+
+    var state = { profile: null, coins: "", picture: null, pictureIsMine: false };
+
+    var el = {
+      form: document.getElementById("lookup-form"),
+      username: document.getElementById("username"),
+      lookupButton: document.getElementById("lookup-button"),
+      coins: document.getElementById("coins"),
+      notice: document.getElementById("notice"),
+      card: document.getElementById("card"),
+      avatar: document.getElementById("avatar"),
+      avatarBlank: document.getElementById("avatar-blank"),
+      nickname: document.getElementById("nickname"),
+      handle: document.getElementById("handle"),
+      followers: document.getElementById("followers"),
+      balance: document.getElementById("balance"),
+      amounts: document.getElementById("amounts"),
+      send: document.getElementById("send"),
+      pickFile: document.getElementById("pick-file"),
+      file: document.getElementById("file"),
+      imageUrl: document.getElementById("image-url"),
+      source: document.getElementById("source")
+    };
+
+    // ---------- username ----------
+
+    function normalizeUsername(raw) {
+      var value = String(raw || "").trim();
+      if (!value) return null;
+      var fromUrl = value.match(/tiktok\.com\/@([A-Za-z0-9._]+)/i);
+      if (fromUrl) value = fromUrl[1];
+      value = value.replace(/^@+/, "").trim();
+      return /^[A-Za-z0-9._]{1,24}$/.test(value) ? value : null;
+    }
+
+    function profileUrlFor(username) {
+      return "https://www.tiktok.com/@" + username;
+    }
+
+    // ---------- reading the profile page ----------
+
+    function decode(value) {
+      return value
+        .replace(/\\u002[fF]/g, "/")
+        .replace(/\\\//g, "/")
+        .replace(/&amp;/g, "&")
+        .replace(/\\"/g, '"');
+    }
+
+    function firstMatch(html, patterns) {
+      for (var i = 0; i < patterns.length; i++) {
+        var found = html.match(patterns[i]);
+        if (found && found[1]) return decode(found[1]);
+      }
+      return null;
+    }
+
+    function parseProfile(html) {
+      return {
+        avatar: firstMatch(html, [
+          /"avatarLarger":"([^"]+)"/,
+          /"avatarMedium":"([^"]+)"/,
+          /"avatarThumb":"([^"]+)"/,
+          /<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']+)["']/i,
+          /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']/i,
+          /!\[[^\]]*\]\((https:\/\/[^\s)]*tiktokcdn[^\s)]*)\)/i,
+          /(https:\/\/p\d{1,3}[-\w]*\.tiktokcdn[^"'\s)\\]+)/i
+        ]),
+        nickname: firstMatch(html, [
+          /"nickname":"([^"]*)"/,
+          /<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+?)\s*\(@/i
+        ]),
+        followers: firstMatch(html, [/"followerCount":(\d+)/])
+      };
+    }
+
+    function fetchText(url) {
+      var controller = new AbortController();
+      var timer = setTimeout(function () { controller.abort(); }, TIMEOUT);
+      return fetch(url, { signal: controller.signal })
+        .then(function (response) {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.text();
+        })
+        .finally(function () { clearTimeout(timer); });
+    }
+
+    var PROXIES = [
+      { name: "allorigins", build: function (t) { return "https://api.allorigins.win/raw?url=" + encodeURIComponent(t); } },
+      { name: "corsproxy.io", build: function (t) { return "https://corsproxy.io/?url=" + encodeURIComponent(t); } },
+      { name: "r.jina.ai", build: function (t) { return "https://r.jina.ai/" + t; } }
+    ];
+
+    function lookup(username) {
+      var target = profileUrlFor(username);
+      var attempts = [];
+
+      return PROXIES.reduce(function (chain, proxy) {
+        return chain.then(function (result) {
+          if (result) return result;
+          return fetchText(proxy.build(target))
+            .then(function (html) {
+              var parsed = parseProfile(html);
+              if (parsed.avatar) {
+                return {
+                  username: username,
+                  avatar: parsed.avatar,
+                  nickname: parsed.nickname,
+                  followers: parsed.followers ? Number(parsed.followers) : null,
+                  source: proxy.name
+                };
+              }
+              attempts.push(proxy.name + ": no picture in the response (TikTok served a bot check)");
+              return null;
+            })
+            .catch(function (error) {
+              attempts.push(proxy.name + ": " + error.message);
+              return null;
+            });
+        });
+      }, Promise.resolve(null)).then(function (result) {
+        if (result) return result;
+        var failure = new Error("Could not read the profile automatically.");
+        failure.attempts = attempts;
+        throw failure;
+      });
+    }
+
+    // ---------- rendering ----------
+
+    function showNotice(heading, lines) {
+      var html = "<strong>" + heading + "</strong>";
+      if (lines && lines.length) {
+        html += "<p>What was tried:</p><ul>";
+        lines.forEach(function (line) {
+          html += "<li>" + line.replace(/[<>&]/g, function (c) {
+            return { "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c];
+          }) + "</li>";
+        });
+        html += "</ul><p>Set the picture yourself below, or open the profile on TikTok.</p>";
+      }
+      el.notice.innerHTML = html;
+      el.notice.hidden = false;
+    }
+
+    function hideNotice() {
+      el.notice.hidden = true;
+    }
+
+    function renderAmounts() {
+      el.amounts.innerHTML = "";
+      AMOUNTS.forEach(function (amount) {
+        var tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "amount";
+        tile.setAttribute("aria-pressed", String(Number(state.coins) === amount));
+        tile.innerHTML =
+          '<svg class="coin" width="15" height="15" aria-hidden="true"><use href="#coin" /></svg>' +
+          "<span>" + numbers.format(amount) + "</span>";
+        tile.addEventListener("click", function () {
+          state.coins = String(amount);
+          el.coins.value = state.coins;
+          render();
+        });
+        el.amounts.appendChild(tile);
+      });
+    }
+
+    function render() {
+      var profile = state.profile;
+      el.card.hidden = !profile;
+      if (!profile) return;
+
+      var picture = state.picture || profile.avatar || null;
+      if (picture) {
+        el.avatar.src = picture;
+        el.avatar.alt = "@" + profile.username + " on TikTok";
+        el.avatar.hidden = false;
+        el.avatarBlank.hidden = true;
+      } else {
+        el.avatar.hidden = true;
+        el.avatarBlank.hidden = false;
+        el.avatarBlank.textContent = (profile.username.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase();
+      }
+
+      el.nickname.textContent = profile.nickname || "";
+      el.nickname.hidden = !profile.nickname;
+
+      el.handle.textContent = "@" + profile.username;
+      el.handle.href = profileUrlFor(profile.username);
+
+      el.followers.hidden = typeof profile.followers !== "number";
+      if (typeof profile.followers === "number") {
+        el.followers.textContent = numbers.format(profile.followers) + " followers";
+      }
+
+      el.balance.textContent = state.coins === "" ? "0" : numbers.format(Number(state.coins));
+
+      var fromLookup = !state.pictureIsMine && profile.avatar;
+      el.source.hidden = !fromLookup;
+      if (fromLookup) el.source.textContent = "Picture found via " + profile.source;
+
+      renderAmounts();
+    }
+
+    // ---------- events ----------
+
+    el.form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var username = normalizeUsername(el.username.value);
+
+      if (!username) {
+        state.profile = null;
+        render();
+        showNotice("That is not a valid TikTok username. Use letters, numbers, dots or underscores, or paste the profile link.", null);
+        return;
+      }
+
+      hideNotice();
+      state.picture = null;
+      state.pictureIsMine = false;
+      el.imageUrl.value = "";
+      el.lookupButton.disabled = true;
+      el.lookupButton.textContent = "Looking up...";
+
+      lookup(username)
+        .then(function (profile) {
+          state.profile = profile;
+          render();
+        })
+        .catch(function (error) {
+          // The name is valid, only the picture is missing: keep the card.
+          state.profile = { username: username, avatar: null, nickname: null, followers: null, source: null };
+          render();
+          showNotice(error.message, error.attempts || []);
+        })
+        .finally(function () {
+          el.lookupButton.disabled = false;
+          el.lookupButton.textContent = "Look up";
+        });
+    });
+
+    el.username.addEventListener("input", function () {
+      el.username.value = el.username.value.replace(/^@+/, "");
+    });
+
+    el.coins.addEventListener("input", function () {
+      state.coins = el.coins.value.replace(/[^\d]/g, "").slice(0, 12);
+      el.coins.value = state.coins;
+      render();
+    });
+
+    el.pickFile.addEventListener("click", function () {
+      el.file.click();
+    });
+
+    el.file.addEventListener("change", function () {
+      var file = el.file.files && el.file.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        state.picture = String(reader.result);
+        state.pictureIsMine = true;
+        render();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    el.imageUrl.addEventListener("input", function () {
+      var value = el.imageUrl.value.trim();
+      state.picture = value || null;
+      state.pictureIsMine = Boolean(value);
+      render();
+    });
+
+    el.avatar.addEventListener("error", function () {
+      if (!state.picture) return;
+      state.picture = null;
+      state.pictureIsMine = false;
+      render();
+      showNotice("That picture could not be loaded. Try a file from this device instead.", null);
+    });
+
+    var toastTimer = null;
+
+    el.send.addEventListener("click", function () {
+      if (!state.profile) return;
+      var existing = document.querySelector(".toast");
+      if (existing) existing.remove();
+      if (toastTimer) clearTimeout(toastTimer);
+
+      var amount = state.coins === "" ? "0" : numbers.format(Number(state.coins));
+      var toast = document.createElement("div");
+      toast.className = "toast";
+      toast.setAttribute("role", "status");
+      toast.innerHTML =
+        '<svg class="coin" width="20" height="20" aria-hidden="true"><use href="#coin" /></svg>' +
+        "<span>Sent " + amount + " to @" + state.profile.username +
+        "<small>Nothing actually left this page.</small></span>";
+      document.body.appendChild(toast);
+
+      toastTimer = setTimeout(function () { toast.remove(); }, 2600);
+    });
+
+    renderAmounts();
+  })();
+</script>
