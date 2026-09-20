@@ -1,0 +1,282 @@
+.tt-page {
+  --tt-bg: #0f0f12;
+  --tt-surface: #1b1b21;
+  --tt-border: #2e2e37;
+  --tt-text: #f4f4f6;
+  --tt-muted: #a1a1ad;
+  --tt-gold: #f0c04a;
+  --tt-pink: #ff3b5c;
+
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 40px 16px 64px;
+  margin: 0 auto;
+  max-width: 560px;
+  background: var(--tt-bg);
+  color: var(--tt-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.tt-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.tt-header h1 {
+  margin: 12px 0 6px;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.tt-header p {
+  margin: 0;
+  color: var(--tt-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.tt-panel {
+  background: var(--tt-surface);
+  border: 1px solid var(--tt-border);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.tt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tt-muted);
+  margin-bottom: 8px;
+}
+
+.tt-label + .tt-row,
+.tt-label + .tt-field {
+  margin-bottom: 18px;
+}
+
+.tt-panel > :last-child {
+  margin-bottom: 0;
+}
+
+.tt-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.tt-row .tt-field {
+  flex: 1 1 200px;
+  margin-bottom: 0;
+}
+
+.tt-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #101015;
+  border: 1px solid var(--tt-border);
+  border-radius: 12px;
+  padding: 0 12px;
+}
+
+.tt-field:focus-within {
+  border-color: var(--tt-gold);
+}
+
+.tt-adornment {
+  display: flex;
+  align-items: center;
+  color: var(--tt-muted);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.tt-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--tt-text);
+  font-size: 16px;
+  padding: 13px 0;
+  font-family: inherit;
+}
+
+.tt-input::placeholder {
+  color: #6b6b78;
+}
+
+.tt-button {
+  background: var(--tt-pink);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 22px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tt-button:hover:not(:disabled) {
+  background: #e62f4f;
+}
+
+.tt-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tt-error {
+  margin-top: 18px;
+  background: #2a1a1d;
+  border: 1px solid #5a2b34;
+  border-radius: 14px;
+  padding: 16px 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.tt-error p {
+  margin: 10px 0 6px;
+  color: var(--tt-muted);
+}
+
+.tt-error ul {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--tt-muted);
+  word-break: break-word;
+}
+
+.tt-hint {
+  margin-bottom: 0 !important;
+}
+
+.tt-card {
+  margin-top: 22px;
+  background: var(--tt-surface);
+  border: 1px solid var(--tt-border);
+  border-radius: 16px;
+  padding: 28px 20px 22px;
+  text-align: center;
+}
+
+.tt-avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.tt-avatar {
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #101015;
+  border: 3px solid var(--tt-gold);
+}
+
+.tt-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 46px;
+  font-weight: 700;
+  color: var(--tt-gold);
+  border-style: dashed;
+}
+
+.tt-nickname {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.tt-handle {
+  color: var(--tt-muted);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.tt-handle:hover {
+  color: var(--tt-text);
+  text-decoration: underline;
+}
+
+.tt-followers {
+  margin: 10px 0 0;
+  color: var(--tt-muted);
+  font-size: 14px;
+}
+
+.tt-coins-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.tt-coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 18px;
+  background: #101015;
+  border: 1px solid #3d3423;
+  border-radius: 999px;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tt-gold);
+}
+
+.tt-manual {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--tt-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.tt-link-button {
+  background: none;
+  border: none;
+  color: var(--tt-muted);
+  font-size: 14px;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tt-link-button:hover {
+  color: var(--tt-text);
+}
+
+.tt-input-plain {
+  border: 1px solid var(--tt-border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 14px;
+  text-align: center;
+  background: #101015;
+}
+
+.tt-source {
+  margin: 16px 0 0;
+  font-size: 12px;
+  color: #6b6b78;
+}
+
+.tt-footer {
+  margin-top: 26px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b6b78;
+  text-align: center;
+}

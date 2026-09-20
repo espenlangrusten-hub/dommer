@@ -44,3 +44,40 @@ You don’t have to ever use `eject`. The curated feature set is suitable for sm
 You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
 To learn React, check out the [React documentation](https://reactjs.org/).
+
+## TikTok Profile Lookup
+
+The landing page (`src/TikTokLookup.tsx`) takes a TikTok username and shows the
+profile picture, plus a coin number you type yourself. The DommerJob login screen
+still lives at `#/dommer`.
+
+### How the picture is fetched, and why it can fail
+
+TikTok publishes no public, CORS-enabled API for "username -> avatar", and a
+browser cannot fetch `tiktok.com` directly (no `Access-Control-Allow-Origin`
+header). Since this site is deployed as static files on GitHub Pages, there is no
+backend to proxy through, so `src/tiktok.ts` tries a handful of public CORS
+proxies and parses the avatar out of the profile HTML.
+
+That is best-effort: TikTok often serves a bot-check page to datacenter IPs, and
+the public proxies rate-limit. When every proxy fails the card is still shown -
+with the username, a link to the profile and the option to set the picture from a
+file or an image URL.
+
+### Making it reliable
+
+Point the app at your own endpoint:
+
+```
+REACT_APP_TIKTOK_API=https://your-function.example.com/tiktok
+```
+
+It is called as `?username=xyz` and should answer with
+`{ "avatarUrl": "...", "nickname": "...", "followerCount": 123 }`. It is tried
+first, and the public proxies stay as a fallback. Note that this needs a host
+that runs code - GitHub Pages alone cannot do it.
+
+### Note on the coin number
+
+The coin field is a label you type onto the card. It is not a balance, it reads
+nothing from TikTok and it changes nothing on TikTok.
