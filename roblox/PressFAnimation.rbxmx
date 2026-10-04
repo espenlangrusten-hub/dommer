@@ -6,26 +6,23 @@
 			<token name="RunContext">2</token>
 			<string name="Name">PressFAnimation</string>
 			<ProtectedString name="Source"><![CDATA[-- PressFAnimation
--- Press F once: plays the animation and holds the pose (arm stays up).
--- Press F again: lets go (arm goes back down).
+-- Press F once: the arm moves into the animation's final pose and stays there.
+-- Press F again: the arm goes back down.
 -- This is a Script with RunContext = Client, so it runs on each player's
 -- computer from Workspace or ReplicatedStorage. Do NOT put it in
 -- StarterPlayerScripts (it would run twice there).
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 
-local ANIMATION_ID = "rbxassetid://95203507058611" -- replace with the group-owned ID
+local ANIMATION_ID = "rbxassetid://95203507058611" -- must be owned by the game's owner (your group)
 local KEY = Enum.KeyCode.F
 
--- Where to freeze the pose:
---   nil   = freeze on the last frame of the animation
---   a number (seconds) = freeze at that time, e.g. 0.5
---   Use a number if your animation lowers the arm again at the end.
-local HOLD_AT = nil
+local RAISE_TIME = 0.1 -- seconds to move into the pose
+local LOWER_TIME = 0.15 -- seconds to move back down
 
-local FADE_TIME = 0.15
+-- Which frame to hold: nil = the last frame, or a time in seconds (e.g. 0.1)
+local HOLD_AT = nil
 
 local player = Players.LocalPlayer
 
@@ -35,7 +32,6 @@ animation.AnimationId = ANIMATION_ID
 local track = nil
 local trackAnimator = nil -- the Animator the track was loaded on
 local holding = false
-local holdConnection = nil
 
 local function getAnimator()
 	local character = player.Character
@@ -67,62 +63,52 @@ local function getTrack()
 			return nil
 		end
 		result.Priority = Enum.AnimationPriority.Action4
-		result.Looped = false
+		result.Looped = true -- never ends by itself; we freeze it instead
 		track = result
 		trackAnimator = animator
 	end
 	return track
 end
 
-local function clearHoldConnection()
-	if holdConnection then
-		holdConnection:Disconnect()
-		holdConnection = nil
-	end
-end
-
-local function release()
-	clearHoldConnection()
-	holding = false
-	if track then
-		track:Stop(FADE_TIME)
-		track:AdjustSpeed(1)
-	end
-	print("[PressF] Released")
-end
-
-local function playAndHold()
+local function holdPose()
 	local current = getTrack()
 	if not current then
 		return
 	end
-
-	clearHoldConnection()
 	holding = true
-	current:Play(FADE_TIME)
-	current:AdjustSpeed(1)
-	print("[PressF] Playing and holding " .. ANIMATION_ID)
 
-	-- Each frame, check whether we reached the hold point; if so, freeze there
-	holdConnection = RunService.Heartbeat:Connect(function()
-		if current.Length == 0 then
-			return -- still loading
-		end
-		local holdTime = HOLD_AT or (current.Length - 0.05)
-		holdTime = math.clamp(holdTime, 0, current.Length - 0.05)
-		if current.TimePosition >= holdTime then
-			current:AdjustSpeed(0)
-			current.TimePosition = holdTime
-			clearHoldConnection()
-		end
-	end)
+	-- Start at speed 0; the fade-in blends the arm smoothly into the pose
+	current:Play(RAISE_TIME, 1, 0)
 
-	task.delay(3, function()
-		if track == current and current.Length == 0 then
-			warn("[PressF] Animation did not load (Length = 0). Check the ID, "
-				.. "ownership (game and animation must have the same owner), and the rig type.")
-		end
-	end)
+	-- Wait until the animation has loaded so we know its length
+	local waited = 0
+	while current.Length == 0 and waited < 3 do
+		waited += task.wait()
+	end
+	if current.Length == 0 then
+		warn("[PressF] Animation did not load (Length = 0). Check the ID and that the "
+			.. "animation is owned by the same owner as the game (your group).")
+		holding = false
+		return
+	end
+	if not holding or track ~= current then
+		return -- F was pressed again (or respawned) while loading
+	end
+
+	-- Jump to the final frame and keep it there
+	local holdTime = HOLD_AT or current.Length
+	current.TimePosition = math.clamp(holdTime, 0, current.Length * 0.999)
+	current:AdjustSpeed(0)
+	print(string.format("[PressF] Holding pose at %.2fs (animation length %.2fs)",
+		current.TimePosition, current.Length))
+end
+
+local function release()
+	holding = false
+	if track then
+		track:Stop(LOWER_TIME)
+	end
+	print("[PressF] Released")
 end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -133,13 +119,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if holding then
 		release()
 	else
-		playAndHold()
+		holdPose()
 	end
 end)
 
 -- Reset when the character respawns
 player.CharacterAdded:Connect(function()
-	clearHoldConnection()
 	holding = false
 	track = nil
 	trackAnimator = nil
