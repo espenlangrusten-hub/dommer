@@ -1,0 +1,242 @@
+-- PickupServer (Script, RunContext = Server)
+-- Makes every model/part in Workspace > "Pickups" (or tagged "Pickup")
+-- something you can pick up with G when you are close, and drop with G again.
+
+local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local FOLDER_NAME = "Pickups" -- put your models in Workspace > Pickups
+local TAG = "Pickup" -- or give a model this tag instead
+local PICKUP_KEY = Enum.KeyCode.G
+local PICKUP_RANGE = 8 -- studs
+
+-- Where the object sits while carried (relative to the character)
+local HOLD_HEIGHT = 0.5 -- up/down
+local HOLD_GAP = 1 -- distance in front of the chest
+local DROP_GAP = 2 -- distance in front when dropped
+
+local remote = ReplicatedStorage:FindFirstChild("PickupRemote")
+if not remote then
+	remote = Instance.new("RemoteEvent")
+	remote.Name = "PickupRemote"
+	remote.Parent = ReplicatedStorage
+end
+
+local held = {} -- [player] = info about what they carry
+local holder = {} -- [object] = player carrying it
+
+local function getParts(object)
+	if object:IsA("BasePart") then
+		return { object }
+	end
+	local parts = {}
+	for _, d in ipairs(object:GetDescendants()) do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+		end
+	end
+	return parts
+end
+
+local function getRoot(object)
+	if object:IsA("BasePart") then
+		return object
+	end
+	return object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function getBox(object)
+	if object:IsA("BasePart") then
+		return object.CFrame, object.Size
+	end
+	return object:GetBoundingBox()
+end
+
+-- Move the object so the centre of its bounding box ends up at boxTarget
+local function moveBoxTo(object, boxTarget)
+	local boxCFrame = getBox(object)
+	local offset = boxCFrame:ToObjectSpace(object:GetPivot())
+	object:PivotTo(boxTarget * offset)
+end
+
+local function pickUp(player, object, prompt)
+	if held[player] or holder[object] then
+		return
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local hrp = character and character:FindFirstChild("HumanoidRootPart")
+	local root = getRoot(object)
+	if not humanoid or humanoid.Health <= 0 or not hrp or not root then
+		return
+	end
+	if (root.Position - hrp.Position).Magnitude > PICKUP_RANGE + 4 then
+		return
+	end
+
+	-- Remember original settings and weld the object's parts together
+	local saved = {}
+	local innerWelds = {}
+	for _, part in ipairs(getParts(object)) do
+		saved[part] = {
+			Anchored = part.Anchored,
+			CanCollide = part.CanCollide,
+			Massless = part.Massless,
+		}
+		if part ~= root then
+			local weld = Instance.new("WeldConstraint")
+			weld.Name = "PickupInnerWeld"
+			weld.Part0 = root
+			weld.Part1 = part
+			weld.Parent = root
+			table.insert(innerWelds, weld)
+		end
+	end
+	for part in pairs(saved) do
+		part.Anchored = false
+		part.CanCollide = false
+		part.Massless = true
+	end
+
+	-- Put it in front of the character and attach it
+	local _, size = getBox(object)
+	moveBoxTo(object, hrp.CFrame * CFrame.new(0, HOLD_HEIGHT, -(size.Z / 2 + HOLD_GAP)))
+
+	local holdWeld = Instance.new("WeldConstraint")
+	holdWeld.Name = "PickupHoldWeld"
+	holdWeld.Part0 = hrp
+	holdWeld.Part1 = root
+	holdWeld.Parent = root
+
+	prompt.Enabled = false
+	held[player] = {
+		object = object,
+		prompt = prompt,
+		saved = saved,
+		innerWelds = innerWelds,
+		holdWeld = holdWeld,
+	}
+	holder[object] = player
+	remote:FireClient(player, "hold")
+	print("[Pickup]", player.Name, "picked up", object.Name)
+end
+
+local function drop(player)
+	local info = held[player]
+	if not info then
+		return
+	end
+	held[player] = nil
+	holder[info.object] = nil
+	info.holdWeld:Destroy()
+
+	local object = info.object
+	if object.Parent then
+		local character = player.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local _, size = getBox(object)
+			local target = hrp.CFrame * CFrame.new(0, 0, -(size.Z / 2 + DROP_GAP))
+
+			-- Find the ground under the drop point so it sits on it
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = { character, object }
+			local result = workspace:Raycast(target.Position + Vector3.new(0, 5, 0), Vector3.new(0, -50, 0), params)
+			if result then
+				local groundY = result.Position.Y + size.Y / 2
+				target = target + Vector3.new(0, groundY - target.Position.Y, 0)
+			end
+			moveBoxTo(object, target)
+		end
+
+		-- Restore the original settings
+		for part, props in pairs(info.saved) do
+			if part.Parent then
+				part.Anchored = props.Anchored
+				part.CanCollide = props.CanCollide
+				part.Massless = props.Massless
+			end
+		end
+		for _, weld in ipairs(info.innerWelds) do
+			weld:Destroy()
+		end
+		info.prompt.Enabled = true
+	end
+
+	if player.Parent then
+		remote:FireClient(player, "release")
+	end
+	print("[Pickup]", player.Name, "dropped", object.Name)
+end
+
+local function setupPickup(object)
+	if not (object:IsA("Model") or object:IsA("BasePart")) then
+		return
+	end
+	local root = getRoot(object)
+	if not root then
+		warn("[Pickup] " .. object:GetFullName() .. " has no parts, skipping")
+		return
+	end
+	if root:FindFirstChild("PickupPrompt") then
+		return
+	end
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "PickupPrompt"
+	prompt.ActionText = "Pick up"
+	prompt.ObjectText = object.Name
+	prompt.KeyboardKeyCode = PICKUP_KEY
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = PICKUP_RANGE
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = root
+
+	prompt.Triggered:Connect(function(player)
+		pickUp(player, object, prompt)
+	end)
+end
+
+-- The client asks to drop when G is pressed while carrying
+remote.OnServerEvent:Connect(function(player, action)
+	if action == "drop" then
+		drop(player)
+	end
+end)
+
+-- Drop when the player dies, respawns or leaves
+local function onPlayerAdded(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:WaitForChild("Humanoid")
+		humanoid.Died:Connect(function()
+			drop(player)
+		end)
+	end)
+	player.CharacterRemoving:Connect(function()
+		drop(player)
+	end)
+end
+Players.PlayerAdded:Connect(onPlayerAdded)
+for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerAdded(player)
+end
+Players.PlayerRemoving:Connect(drop)
+
+-- Register everything in the Pickups folder and everything tagged "Pickup"
+local folder = workspace:FindFirstChild(FOLDER_NAME)
+if folder then
+	for _, child in ipairs(folder:GetChildren()) do
+		setupPickup(child)
+	end
+	folder.ChildAdded:Connect(setupPickup)
+else
+	warn("[Pickup] No Workspace." .. FOLDER_NAME .. " folder found (tagged objects still work)")
+end
+for _, object in ipairs(CollectionService:GetTagged(TAG)) do
+	setupPickup(object)
+end
+CollectionService:GetInstanceAddedSignal(TAG):Connect(setupPickup)
+
+print("[Pickup] Server loaded")
