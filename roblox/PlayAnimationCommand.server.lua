@@ -1,11 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
-	<Item class="Script" referent="RBX0">
-		<Properties>
-			<bool name="Disabled">false</bool>
-			<Content name="LinkedSource"><null></null></Content>
-			<token name="RunContext">0</token>
-			<string name="Name">PlayAnimationCommand</string>
-			<ProtectedString name="Source"><![CDATA[-- PlayAnimationCommand (Script)
+-- PlayAnimationCommand (Script)
 -- Put this in ServerScriptService.
 -- Type in chat:  /play pickup   -> plays the pickup animation
 --                /play stop     -> stops the current animation
@@ -141,7 +134,3 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 log("Loaded. Chat version:", TextChatService.ChatVersion.Name)
-]]></ProtectedString>
-		</Properties>
-	</Item>
-</roblox>
