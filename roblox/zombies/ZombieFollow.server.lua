@@ -1,0 +1,109 @@
+--[[
+	ZombieFollow  (Script -> ServerScriptService)
+
+	Every Model tagged "Zombie" will:
+	  * walk toward the nearest player (within DETECTION_RANGE)
+	  * play your walk animation while moving, and stop it when standing still
+
+	A zombie must be a Model with a Humanoid and an UNANCHORED HumanoidRootPart
+	(a rig from Avatar -> Rig Builder works). Add the tag in Properties -> Tags.
+	Zombies spawned or tagged later (while the game is running) also work.
+]]
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+
+local CONFIG = {
+	TAG = "Zombie",
+	WALK_ANIMATION_ID = "rbxassetid://75260676999000",
+	WALK_SPEED = 12, -- zombie speed (players walk at 16)
+	DETECTION_RANGE = 100, -- studs; players farther away are ignored
+	STOP_DISTANCE = 3, -- stop this close to the player
+	UPDATE_INTERVAL = 0.2, -- seconds between re-targeting
+}
+
+local function findNearestPlayer(position)
+	local nearestRoot, nearestDistance = nil, CONFIG.DETECTION_RANGE
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if humanoid and root and humanoid.Health > 0 then
+			local distance = (root.Position - position).Magnitude
+			if distance < nearestDistance then
+				nearestRoot, nearestDistance = root, distance
+			end
+		end
+	end
+	return nearestRoot, nearestDistance
+end
+
+local function setupZombie(zombie)
+	if not zombie:IsA("Model") then
+		warn("[Zombie] Tag", CONFIG.TAG, "should be on a Model, not", zombie:GetFullName())
+		return
+	end
+	local humanoid = zombie:WaitForChild("Humanoid", 10)
+	local root = zombie:WaitForChild("HumanoidRootPart", 10)
+	if not (humanoid and root) then
+		warn("[Zombie]", zombie:GetFullName(), "needs a Humanoid and a HumanoidRootPart")
+		return
+	end
+	if root.Anchored then
+		warn("[Zombie]", zombie:GetFullName(), "HumanoidRootPart is anchored, so it can't walk")
+	end
+
+	humanoid.WalkSpeed = CONFIG.WALK_SPEED
+
+	-- The server controls the zombie's physics, which keeps its movement smooth.
+	pcall(function()
+		root:SetNetworkOwner(nil)
+	end)
+
+	-- Walk animation
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = CONFIG.WALK_ANIMATION_ID
+	local walkTrack = animator:LoadAnimation(animation)
+	walkTrack.Looped = true
+	walkTrack.Priority = Enum.AnimationPriority.Movement
+
+	local runningConnection = humanoid.Running:Connect(function(speed)
+		if speed > 0.5 then
+			if not walkTrack.IsPlaying then
+				walkTrack:Play(0.2)
+			end
+			walkTrack:AdjustSpeed(speed / CONFIG.WALK_SPEED)
+		elseif walkTrack.IsPlaying then
+			walkTrack:Stop(0.2)
+		end
+	end)
+
+	-- Follow loop
+	task.spawn(function()
+		while zombie.Parent and humanoid.Health > 0 and CollectionService:HasTag(zombie, CONFIG.TAG) do
+			local target, distance = findNearestPlayer(root.Position)
+			if target and distance > CONFIG.STOP_DISTANCE then
+				humanoid:MoveTo(target.Position)
+			else
+				humanoid:MoveTo(root.Position) -- stand still
+			end
+			task.wait(CONFIG.UPDATE_INTERVAL)
+		end
+		runningConnection:Disconnect()
+		if walkTrack.IsPlaying then
+			walkTrack:Stop()
+		end
+	end)
+end
+
+CollectionService:GetInstanceAddedSignal(CONFIG.TAG):Connect(function(zombie)
+	task.spawn(setupZombie, zombie)
+end)
+for _, zombie in CollectionService:GetTagged(CONFIG.TAG) do
+	task.spawn(setupZombie, zombie)
+end
