@@ -21,4 +21,4 @@ spawner and renames them to **Skeleton Spawner**.
   which a resource pack can't add.
 - Gold blocks render as solid blocks, so the see-through gaps in the spawner
   cage show as dark instead of transparent.
-- Works on Java Edition 1.20.2 and newer. Not for Bedrock.
+- Made for Java Edition 1.21.9 – 1.21.11. Not for Bedrock.
